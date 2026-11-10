@@ -312,26 +312,34 @@ $('theme-toggle').addEventListener('click', () => {
   preferences.theme = preferences.theme === 'dark' ? 'light' : 'dark';
   savePreferences(storage, preferences); applyTheme();
 });
+let statusChecking = false;
 async function refreshDeviceStatus() {
+  if (statusChecking) return;
+  statusChecking = true;
   try {
     const st = await api('/api/device/status');
     mustChange = Boolean(st.must_change_pin);
     updateArmed();
     if (st.simulated || simulatedMode) {
-      setStatusLight('simulated', 'SIMULATED', 'Simulated device — no RF hardware connected');
-    } else if (!st.cc1101_ok || !st.auth_ready) {
-      setStatusLight('offline', 'FAULT', 'ESP8266 reachable, but CC1101 or auth store is not ready');
-    } else if (st.locked_out) {
-      setStatusLight('warning', 'LOCKED OUT', `Brute-force lockout (${st.lockout_remaining_s}s remaining)`);
-    } else if (st.must_change_pin) {
-      setStatusLight('warning', 'PIN SETUP', 'ESP8266 online — change default PIN 0000 in Settings');
+      $('mode').textContent = 'SIMULATED';
+      setStatusLight('simulated', 'SIMULATED', 'Simulated device — CC1101 simulated');
+    } else if (!st.cc1101_ok) {
+      $('mode').textContent = 'CC1101 FAULT';
+      setStatusLight('offline', 'CC1101 FAULT', 'ESP8266 reachable, but CC1101 is disconnected or unhealthy');
+    } else if (!st.auth_ready) {
+      $('mode').textContent = 'AUTH FAULT';
+      setStatusLight('warning', 'AUTH FAULT', 'ESP8266 + CC1101 reachable, but auth store is uninitialized');
     } else {
-      setStatusLight('online', 'ONLINE', 'ESP8266 + CC1101 online and ready');
+      $('mode').textContent = 'LIVE DEVICE';
+      setStatusLight('online', 'ONLINE', `ESP8266 reachable · CC1101 healthy (uptime ${st.uptime_s}s)`);
     }
   } catch {
     if (!simulatedMode) {
+      $('mode').textContent = 'OFFLINE';
       setStatusLight('offline', 'OFFLINE', 'ESP8266 unreachable');
     }
+  } finally {
+    statusChecking = false;
   }
 }
 applyTheme(); applyRoute(); updateArmed();
@@ -348,5 +356,5 @@ api('/api/config').then(config => {
   setStatusLight('offline', 'OFFLINE', 'Backend or ESP8266 offline');
   message(error.message, 'error');
 });
-setInterval(() => { if (!document.hidden) refreshDeviceStatus(); }, 10000);
+setInterval(() => { if (!document.hidden) refreshDeviceStatus(); }, 3000);
 refreshLibrary().catch(error => message(error.message, 'error'));
