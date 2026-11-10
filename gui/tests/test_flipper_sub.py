@@ -76,6 +76,7 @@ def test_hormann_hsm_full_frame_and_868mhz():
     assert signal.pulses[2:18] == [1000, -500] * 8
     # Bottom 2 bits are 11 -> 2x (+1000, -500)
     assert signal.pulses[-4:] == [1000, -500, 1000, -500]
+    assert any("outside the 433 MHz band" in w for w in signal.warnings)
     # Alias and roundtrip export check
     alias_signal = parse_sub(raw_sub.replace("Protocol: Hormann HSM", "Protocol: Hormann"))
     assert alias_signal.pulses == signal.pulses

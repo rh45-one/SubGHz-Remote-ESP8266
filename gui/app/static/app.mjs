@@ -183,6 +183,11 @@ function bindHold(button, getWaveform) {
   });
   let animation = null;
   function cancel() { gate.cancel(); selected = null; button.style.setProperty('--held', '0%'); button.classList.remove('holding'); if (animation !== null) cancelAnimationFrame(animation); animation = null; }
+  function release() {
+    const releasedEarly = gate.started !== null && gate.progress() < 1 && session.active() && !mustChange && !busy && !document.hidden;
+    cancel();
+    if (releasedEarly) message('Hold button for 0.8s to transmit.');
+  }
   const item = {cancel}; holds.add(item);
   function frame() {
     button.style.setProperty('--held', `${gate.progress() * 100}%`);
@@ -201,10 +206,11 @@ function bindHold(button, getWaveform) {
     button.classList.add('holding'); animation = requestAnimationFrame(frame);
   }
   button.addEventListener('pointerdown', event => { if (!event.isPrimary || event.button !== 0) return; event.preventDefault(); button.setPointerCapture(event.pointerId); begin(); });
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture', 'blur']) button.addEventListener(type, cancel);
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) button.addEventListener(type, release);
+  for (const type of ['lostpointercapture', 'blur']) button.addEventListener(type, cancel);
   button.addEventListener('contextmenu', event => { event.preventDefault(); cancel(); });
   button.addEventListener('keydown', event => { if (event.code === 'Space' || event.code === 'Enter') { event.preventDefault(); if (!event.repeat) begin(); } });
-  button.addEventListener('keyup', cancel);
+  button.addEventListener('keyup', release);
   button.addEventListener('click', event => event.preventDefault()); // Click never sends.
   return item;
 }
@@ -216,14 +222,14 @@ function renderRemote() {
     button.disabled = !signal;
     button.setAttribute('aria-label', signal ? `${signal.name}. Hold for 0.8 seconds to send.` : `Button ${i + 1}: not assigned. Configure in Settings.`);
     $(`remote-name-${i + 1}`).textContent = signal?.name || 'Not assigned';
-    $(`remote-note-${i + 1}`).textContent = signal ? 'HOLD TO SEND' : 'SET UP IN SETTINGS';
+    $(`remote-note-${i + 1}`).textContent = signal ? `HOLD TO SEND · ${(signal.frequency_hz / 1e6).toFixed(2)} MHz` : 'SET UP IN SETTINGS';
     const select = $(`slot-${i + 1}`);
     select.replaceChildren(new Option('Not assigned', ''));
     for (const record of records) select.add(new Option(record.name, record.id));
     select.value = signal?.id || '';
   }
   const frequencies = [...new Set(slots.filter(Boolean).map(signal => signal.frequency_hz))];
-  $('remote-frequency').textContent = frequencies.length === 1 ? `${(frequencies[0] / 1e6).toFixed(2)} MHz` : (frequencies.length ? 'MULTI / OOK' : 'NO SIGNALS');
+  $('remote-frequency').textContent = frequencies.length === 1 ? `${(frequencies[0] / 1e6).toFixed(2)} MHz` : (frequencies.length ? frequencies.map(f => `${(f / 1e6).toFixed(2)} MHz`).join(' / ') : 'NO SIGNALS');
 }
 async function refreshLibrary() {
   records = await api('/api/signals');

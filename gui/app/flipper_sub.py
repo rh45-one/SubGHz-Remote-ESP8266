@@ -533,6 +533,11 @@ def parse_sub(text: str, name: str = "Imported signal") -> Signal:
             repeats = _number(one("Repeat"), 1, 20)
         elif protocol == "Hormann HSM":
             repeats = 10
+    if not 387_000_000 <= frequency <= 464_000_000:
+        warnings.append(
+            f"Frequency {frequency / 1e6:.2f} MHz is outside the 433 MHz band; "
+            "a 433 MHz CC1101 antenna/balun will heavily attenuate this signal"
+        )
     return Signal(name=name, frequency_hz=frequency, pulses=pulses, repeats=repeats,
                   source_protocol=protocol, warnings=warnings)
 

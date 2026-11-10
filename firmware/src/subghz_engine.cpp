@@ -54,8 +54,10 @@ void configure(float mhz) {
     ELECHOUSE_cc1101.setCCMode(0);
     ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG2, HIGH_Z);
     ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, HIGH_Z);
-    ELECHOUSE_cc1101.setModulation(2);
     ELECHOUSE_cc1101.setMHZ(mhz);
+    ELECHOUSE_cc1101.setModulation(2);
+    ELECHOUSE_cc1101.setSyncMode(0);
+    ELECHOUSE_cc1101.setPA(12);
     ELECHOUSE_cc1101.setRxBW(256.0f);
 }
 } // namespace
@@ -133,20 +135,34 @@ bool SubGhzEngine::transmitRaw(float mhz, const int16_t* pulses, size_t count, u
         !PulseCodec::validRaw(pulses, count, repeats)) return false;
     idle();
     configure(mhz);
-    // Async TX data is an input to the radio. Keep GDO0 High-Z to avoid contention.
     digitalWrite(PIN_CC1101_GDO0, LOW);
     pinMode(PIN_CC1101_GDO0, OUTPUT);
+    ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, 0x0D);
     ELECHOUSE_cc1101.SetTx();
     delayMicroseconds(1000); // Allow synthesizer calibration/settling before the first mark.
     for (uint8_t repeat = 0; repeat < repeats; ++repeat) {
         for (size_t i = 0; i < count; ++i) {
             int32_t p = pulses[i];
             digitalWrite(PIN_CC1101_GDO0, p > 0 ? HIGH : LOW);
-            delayMicroseconds(p > 0 ? p : -p);
+            uint32_t us = static_cast<uint32_t>(p > 0 ? p : -p);
+            if (p <= -5000) {
+                // Only yield to the Wi-Fi/CONT stack during long OFF gaps (>= 5 ms),
+                // compensating for elapsed time so bit-level spaces are never stretched.
+                uint32_t startUs = micros();
+                yield();
+                uint32_t elapsedUs = micros() - startUs;
+                if (elapsedUs < us) delayMicroseconds(us - elapsedUs);
+            } else {
+                delayMicroseconds(us);
+            }
         }
-        digitalWrite(PIN_CC1101_GDO0, LOW);
-        // Feed the watchdog only between bursts, never while carrier is HIGH.
-        yield();
+        ESP.wdtFeed();
+    }
+    if (pulses[count - 1] < 0 && pulses[count - 1] >= -2000 && pulses[0] >= 2000) {
+        // Back-to-back protocols without a trailing gap (e.g. Hormann HSM) need a
+        // final rising edge + header mark to close the last bit of the final repeat.
+        digitalWrite(PIN_CC1101_GDO0, HIGH);
+        delayMicroseconds(static_cast<uint32_t>(pulses[0]));
     }
     digitalWrite(PIN_CC1101_GDO0, LOW);
     idle();
