@@ -98,7 +98,7 @@ These invariants were discovered and verified on the physical hardware (`COM4`, 
 - Every transmitted burst must begin with a positive mark (`+`) and end with `GDO0` driven `LOW` before returning the CC1101 to `SIDLE` + `IOCFG0 = 0x2E` (High-Z).
 - Supported `.sub` input types in `gui/app/flipper_sub.py`:
   1. `Filetype: Flipper SubGhz RAW File` (`Protocol: RAW` — auto-segmented to single burst `<= 512` pulses + repeat count).
-  2. `Filetype: Flipper SubGhz Key File` (`Princeton`, `CAME`, `Nice FLO`, `Linear`, `GateTX`, `Holtek` — synthesized to microsecond pulse arrays).
+  2. `Filetype: Flipper SubGhz Key File` (all 36 static OOK Flipper Zero `Key` protocols including `Hormann HSM`, `Princeton`, `CAME`, `CAME TWEE`, `Nice FLO`, `Linear`, `LinearDelta3`, `GateTX`, `Holtek`, `Holtek_HT12X`, `Ansonic`, `BETT`, `Cham_Code`, `Clemsa`, `Dickert_MAHS`, `Doitrand`, `Dooya`, `Elplast`, `Feron`, `GangQi`, `Hollarm`, `Honeywell`, `Intertechno_V3`, `Legrand`, `Magellan`, `Marantec`, `Marantec24`, `Mastercode`, `MegaCode`, `Nero Radio`, `Nero Sketch`, `Phoenix_V2`, `Power Smart`, `Revers_RB2`, `Roger`, and `SMC5326` — synthesized to microsecond pulse arrays).
   3. `Protocol: BinRAW` (`Te` + `Data_RAW` bit-run expansion).
 
 ---

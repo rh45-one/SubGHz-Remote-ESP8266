@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.flipper_sub import parse_sub, export_sub
+from app.flipper_sub import KEY_PROTOCOLS, parse_sub, export_sub
 from app.models import Waveform
 
 
@@ -30,11 +30,69 @@ def test_multiline_merge_idle_and_cap():
     ("Linear", 10, "00 00 00 00 00 00 00 01", ([500, -1500], [1500, -21000])),
     ("GateTX", 24, "00 00 00 00 00 00 00 01", ([700, -350], [350, -17150])),
     ("Holtek", 40, "00 00 00 00 00 00 00 01", ([430, -430], [430, -15480])),
+    ("Hormann HSM", 44, "00 00 0F F4 48 1A 7C 03", ([12000, -500], [1000, -500])),
+    ("Ansonic", 12, "00 00 00 00 00 00 00 01", ([555, -1111], [1111, -19425])),
+    ("BETT", 18, "00 00 00 00 00 00 00 01", ([340, -2000], [2000, -14340])),
+    ("Clemsa", 18, "00 00 00 00 00 00 00 01", ([385, -2695], [2695, -19250])),
+    ("Doitrand", 37, "00 00 00 00 00 00 00 01", ([700, -400], [400, -24800])),
+    ("Dooya", 40, "00 00 00 00 00 00 00 01", ([4758, -1466], [733, -9895])),
+    ("Elplast", 18, "00 00 00 00 00 00 00 01", ([230, -1550], [1550, -12400])),
+    ("Feron", 32, "00 00 00 00 00 00 00 01", ([350, -750], [500, -4500])),
+    ("Holtek_HT12X", 12, "00 00 00 00 00 00 00 01", ([320, -320], [320, -11520])),
+    ("Honeywell", 48, "00 00 00 00 00 00 00 01", ([160, -320], [480, -480])),
+    ("Intertechno_V3", 32, "00 00 00 00 00 00 00 01", ([275, -10450], [275, -275])),
+    ("Legrand", 18, "00 00 00 00 00 00 00 01", ([375, -1125], [1125, -6000])),
+    ("Marantec24", 24, "00 00 00 00 00 00 00 01", ([1600, -2400], [800, -15200])),
+    ("Mastercode", 36, "00 00 00 00 00 00 00 01", ([1072, -2145], [2145, -15008])),
+    ("Nero Radio", 56, "00 00 00 00 00 00 00 01", ([200, -200], [400, -7400])),
+    ("Nero Sketch", 40, "00 00 00 00 00 00 00 01", ([330, -330], [990, -330])),
+    ("Phoenix_V2", 52, "00 00 00 00 00 00 00 01", ([2562, -853], [853, -25620])),
+    ("Roger", 28, "00 00 00 00 00 00 00 01", ([500, -1000], [1000, -9500])),
+    ("SMC5326", 25, "00 00 00 00 00 00 00 01", ([300, -900], [300, -7500])),
 ])
 def test_key_known_timings(protocol, bits, key, expected):
     result = parse_sub(sub(protocol, f"Bit: {bits}\nKey: {key}", "Key"))
     assert result.pulses[:2] == expected[0]
     assert result.pulses[-2:] == expected[1]
+
+
+def test_hormann_hsm_full_frame_and_868mhz():
+    raw_sub = (
+        "Filetype: Flipper SubGhz Key File\n"
+        "Version: 1\n"
+        "Frequency: 868350000\n"
+        "Preset: FuriHalSubGhzPresetOok650Async\n"
+        "Protocol: Hormann HSM\n"
+        "Bit: 44\n"
+        "Key: 00 00 0F F4 48 1A 7C 03\n"
+    )
+    signal = parse_sub(raw_sub, name="Hormann Garage")
+    assert signal.source_protocol == "Hormann HSM"
+    assert signal.frequency_hz == 868_350_000
+    assert signal.repeats == 10
+    assert len(signal.pulses) == 90
+    assert signal.pulses[:2] == [12000, -500]
+    # Top 8 bits of 44-bit pattern 0xFF4481A7C03 are 11111111 -> 8x (+1000, -500)
+    assert signal.pulses[2:18] == [1000, -500] * 8
+    # Bottom 2 bits are 11 -> 2x (+1000, -500)
+    assert signal.pulses[-4:] == [1000, -500, 1000, -500]
+    # Alias and roundtrip export check
+    alias_signal = parse_sub(raw_sub.replace("Protocol: Hormann HSM", "Protocol: Hormann"))
+    assert alias_signal.pulses == signal.pulses
+
+
+@pytest.mark.parametrize("protocol", sorted(KEY_PROTOCOLS))
+def test_all_flipper_static_key_protocols_synthesize_valid_waveforms(protocol):
+    allowed_bits, default_te, allow_custom_te = KEY_PROTOCOLS[protocol]
+    bits = min(allowed_bits)
+    sample_val = (1 << (bits - 1)) | 1 if bits > 1 else 1
+    key_hex = " ".join(f"{b:02X}" for b in sample_val.to_bytes(8, "big"))
+    extra = f"\nTE: {default_te}" if allow_custom_te else ""
+    signal = parse_sub(sub(protocol, f"Bit: {bits}\nKey: {key_hex}{extra}", "Key"))
+    assert signal.source_protocol == protocol
+    assert 2 <= len(signal.pulses) <= 512
+    assert signal.pulses[0] > 0
+    assert signal.pulses[-1] < 0
 
 
 def test_came24_header_and_princeton_guard():

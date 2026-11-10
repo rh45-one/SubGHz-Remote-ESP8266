@@ -372,7 +372,7 @@ RAW_Data: 350 -1050 1050 -350 350 -10850
 ```
 
 #### 14. `POST /api/flipper/convert` — Parse & Synthesize a Flipper Zero `.sub` File
-Supports `RAW`, `BinRAW`, `Princeton`, `CAME`, `Nice FLO`, `Linear`, `GateTX`, and `Holtek`.
+Supports `RAW`, `BinRAW`, and all 36 static OOK Flipper Zero `Key` protocols (`Ansonic`, `BETT`, `CAME`, `CAME TWEE`, `Cham_Code`, `Clemsa`, `Dickert_MAHS`, `Doitrand`, `Dooya`, `Elplast`, `Feron`, `GangQi`, `GateTX`, `Hollarm`, `Holtek`, `Holtek_HT12X`, `Honeywell`, `Hormann HSM`, `Intertechno_V3`, `Legrand`, `Linear`, `LinearDelta3`, `Magellan`, `Marantec`, `Marantec24`, `Mastercode`, `MegaCode`, `Nero Radio`, `Nero Sketch`, `Nice FLO`, `Phoenix_V2`, `Power Smart`, `Princeton`, `Revers_RB2`, `Roger`, and `SMC5326`).
 
 **Request:**
 ```http
