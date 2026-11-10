@@ -352,7 +352,8 @@ applyTheme(); applyRoute(); updateArmed();
 api('/api/config').then(config => {
   simulatedMode = Boolean(config.simulated);
   const ver = String(config.version || 'dev').trim();
-  $('app-version').textContent = ver.startsWith('v') || ver.startsWith('ui-v') ? ver : `v${ver}`;
+  const tag = ver.startsWith('v') || ver.startsWith('ui-v') ? ver : `v${ver}`;
+  $('app-version').textContent = `VERSION ${tag}`;
   $('mode').textContent = config.simulated ? 'SIMULATED' : 'LIVE DEVICE';
   $('mode').title = config.simulated ? 'SIMULATED DEVICE — NO RF / NO HARDWARE' : 'Real device mode — requires configured ESP8266';
   $('settings-mode').textContent = config.simulated ? 'SIMULATED DEVICE / NO RF' : 'REAL DEVICE / AUTHENTICATION REQUIRED';

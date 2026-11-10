@@ -36,7 +36,8 @@ def start(container, volume):
     deadline = time.monotonic() + 15
     while True:
         try:
-            assert request(container, "/api/config") == {"simulated": True}
+            cfg = request(container, "/api/config")
+            assert cfg["simulated"] is True and isinstance(cfg.get("version"), str) and cfg["version"]
             return
         except subprocess.CalledProcessError:
             if time.monotonic() >= deadline:

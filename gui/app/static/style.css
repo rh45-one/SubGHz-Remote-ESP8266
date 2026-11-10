@@ -174,7 +174,8 @@ pre { padding: 15px; font: inherit; font-size: 10px; line-height: 1.8; backgroun
 .security-notes { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 15px; font-size: 10px; line-height: 1.8; color: var(--muted); }
 summary { cursor: pointer; color: var(--text); }
 .security-notes p { margin-top: 12px; }
-.settings-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 40px; padding-top: 17px; border-top: 1px solid var(--line); font-size: 8px; letter-spacing: .5px; color: var(--muted); }
+.settings-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 40px; padding-top: 17px; border-top: 1px solid var(--line); font-size: 8px; letter-spacing: .5px; color: var(--muted); }
+.version-badge { color: var(--accent); font-weight: 700; }
 
 .toast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 5; width: max-content; max-width: min(440px, calc(100vw - 32px)); padding: 12px 16px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); box-shadow: 0 4px 30px var(--shadow); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
 dialog { width: 340px; max-width: calc(100vw - 32px); padding: 22px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 20px 90px #0008; }
@@ -289,7 +290,7 @@ dialog .footnote { font-size: 9px; text-align: center; margin: 15px 0 0; }
   .signal-actions button, .signal-actions a { min-height: 40px; }
   .signal-actions .delete-button { margin-left: 0; }
   .button-row button, .primary-button { min-height: 44px; }
-  .settings-footer { flex-direction: column; gap: 6px; margin-top: 30px; }
+  .settings-footer { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 30px; }
 }
 
 @media (max-width: 350px) {

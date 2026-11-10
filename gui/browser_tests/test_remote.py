@@ -124,7 +124,7 @@ def test_responsive_remote(browser, app_server, name, width, height, theme):
         page.locator("#open-settings").click()
         expect(page.locator("#library")).to_be_visible()
         expect(page.locator("#app-version")).to_be_visible()
-        expect(page.locator("#app-version")).to_have_text(re.compile(r"^(ui-)?v"))
+        expect(page.locator("#app-version")).to_have_text(re.compile(r"^VERSION (ui-)?v"))
         if folder and name == "desktop":
             page.screenshot(path=str(Path(folder) / f"settings-{theme}.png"), full_page=True)
         for tab in ("converter", "recorder", "security"):
