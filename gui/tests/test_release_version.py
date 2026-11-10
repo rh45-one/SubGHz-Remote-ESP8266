@@ -199,3 +199,8 @@ def test_release_notes_and_compose_workflow_invariants():
     assert "github.event.workflow_run.head_repository.full_name == github.repository" in workflow
     assert "cancel-in-progress: false" in workflow
     assert workflow.index("gh release create") < workflow.index("docker buildx imagetools create")
+
+    git_plan = release_version.plan_from_git(ROOT, target_sha="HEAD", main_ref="HEAD")
+    assert git_plan["should_release"] is True
+    assert git_plan["tag"].startswith("ui-v")
+

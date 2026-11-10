@@ -254,7 +254,7 @@ def plan_from_git(
     raw_tags = _git(
         repo_dir,
         "for-each-ref",
-        "--format=%(refname:strip=2) %(objectname:lstrip=0) %(*objectname:lstrip=0)",
+        "--format=%(refname:strip=2) %(objectname) %(*objectname)",
         f"refs/tags/{TAG_PREFIX}*",
     )
     tag_commits: dict[str, str] = {}
