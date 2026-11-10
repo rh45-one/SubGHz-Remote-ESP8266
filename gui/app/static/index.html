@@ -24,6 +24,10 @@
   <header class="topbar">
     <a class="brand" href="#remote" aria-label="SubGHz remote home"><svg class="icon brand-icon" aria-hidden="true"><use href="#i-radio"/></svg><span>SUBGHZ<span class="brand-detail">REMOTE CONTROL</span></span></a>
     <div class="topbar-actions">
+      <div id="status-indicator" class="status-indicator" data-status="checking" role="status" aria-live="polite" title="Checking device connection">
+        <span id="status-light" class="status-light" aria-hidden="true"></span>
+        <span id="status-label" class="status-label">CHECKING</span>
+      </div>
       <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch to light theme" title="Switch theme"><svg class="icon sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="icon moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
       <button id="open-settings" class="icon-button" type="button" aria-label="Open settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
     </div>
@@ -33,7 +37,7 @@
     <section id="remote-page" class="remote-page" aria-label="Two-button remote">
       <h1 class="sr-only">Remote control</h1>
       <div class="remote-body">
-        <div class="device-topline"><span>SUBGHZ / 02</span><span class="status-dot" aria-hidden="true"></span></div>
+        <div class="device-topline"><span>SUBGHZ / 02</span><span id="device-status-dot" class="status-dot" data-status="checking" aria-hidden="true"></span></div>
         <div class="remote-display">
           <div class="display-topline"><span id="remote-frequency">433.92 MHz</span><span id="mode" class="mode-badge">CONNECTING</span></div>
           <div class="display-state"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span id="armed" role="status">LOCKED</span></div>
@@ -58,7 +62,6 @@
           <button type="button" data-tab="converter" aria-pressed="false"><span>02</span> Converter</button>
           <button type="button" data-tab="recorder" aria-pressed="false"><span>03</span> Recorder</button>
           <button type="button" data-tab="security" aria-pressed="false"><span>04</span> Security</button>
-          <button type="button" data-tab="appearance" aria-pressed="false"><span>05</span> Appearance</button>
         </nav>
         <div class="settings-content">
           <section id="library" class="tab" aria-labelledby="library-title">
@@ -89,12 +92,6 @@
             <form id="change-form"><div class="field-pair"><label>New PIN<input id="new-pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="4–12 digits"></label><label>Confirm PIN<input id="confirm-pin" type="password" inputmode="numeric" minlength="4" maxlength="12" autocomplete="off" required placeholder="Repeat new PIN"></label></div><button class="primary-button">Change PIN & lock</button></form>
             <pre id="diagnostics" hidden aria-label="Device diagnostics"></pre>
             <details class="security-notes"><summary>How protection works</summary><p>Single-use signed requests. A 60-second armed window. An uninterrupted 0.8-second hold to transmit. Sending, switching apps, hiding the page, or leaving the window locks it.</p><p>No plaintext PIN is stored or sent to the backend. Use Tailscale HTTPS and a trusted LAN. HMAC is not encryption. Hardware acceptance is still pending.</p></details>
-          </section>
-
-          <section id="appearance" class="tab" aria-labelledby="appearance-title" hidden>
-            <div class="section-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2 id="appearance-title">Appearance</h2></div></div>
-            <fieldset class="theme-options"><legend>Color mode</legend><label class="theme-option"><input type="radio" name="theme" value="dark" checked><span class="theme-swatch swatch-dark" aria-hidden="true">Aa</span><span><strong>Night shift</strong><small>Black & orange</small></span></label><label class="theme-option"><input type="radio" name="theme" value="light"><span class="theme-swatch swatch-light" aria-hidden="true">Aa</span><span><strong>Day shift</strong><small>White & orange</small></span></label></fieldset>
-            <p class="muted">Only the theme and button assignments are saved in this browser. Never your PIN.</p>
           </section>
 
           <section id="preview" class="preview-panel" aria-labelledby="preview-title" hidden>

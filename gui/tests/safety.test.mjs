@@ -14,6 +14,11 @@ test('PIN derivation and HMAC byte contract match independent Node crypto', asyn
   const result = await signEnvelope(key, nonce, endpoint, payload, webcrypto);
   assert.equal(result.signature, createHmac('sha256', expected).update(`${nonce}:${endpoint}:${payload}`).digest('hex'));
   assert.equal(result.payload, payload);
+
+  const fallbackRaw = await deriveKey('0000', salt, {});
+  assert.equal(hex(fallbackRaw), expected.toString('hex'));
+  const fallbackSigned = await signEnvelope(fallbackRaw, nonce, endpoint, payload, {});
+  assert.equal(fallbackSigned.signature, result.signature);
 });
 
 test('PIN policy allows 4–12 ASCII digits and preserves leading zeroes', () => {

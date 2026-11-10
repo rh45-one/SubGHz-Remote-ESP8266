@@ -98,13 +98,10 @@ def test_responsive_remote(browser, app_server, name, width, height, theme):
     page.on("pageerror", lambda error: errors.append(str(error)))
     try:
         if theme == "light":
-            if width <= 600:
-                page.locator("#open-settings").click()
-                page.locator('[data-tab="appearance"]').click()
-                page.locator('[name="theme"][value="light"]').check()
-                page.locator("#back-remote").click()
-            else:
-                page.locator("#theme-toggle").click()
+            page.locator("#theme-toggle").click()
+        expect(page.locator("#theme-toggle")).to_be_visible()
+        expect(page.locator("#status-indicator")).to_be_visible()
+        expect(page.locator("#status-indicator")).to_have_attribute("data-status", "simulated")
         expect(page.locator("html")).to_have_attribute("data-theme", theme)
         assert page.locator("#remote-page .hold:visible").count() == 2
         expect(page.locator("#settings-page")).not_to_be_visible()
@@ -128,7 +125,7 @@ def test_responsive_remote(browser, app_server, name, width, height, theme):
         expect(page.locator("#library")).to_be_visible()
         if folder and name == "desktop":
             page.screenshot(path=str(Path(folder) / f"settings-{theme}.png"), full_page=True)
-        for tab in ("converter", "recorder", "security", "appearance"):
+        for tab in ("converter", "recorder", "security"):
             page.locator(f'[data-tab="{tab}"]').click()
             expect(page.locator(f"#{tab}")).to_be_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

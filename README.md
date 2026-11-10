@@ -38,10 +38,10 @@ Pushes to `main` that pass `Offline checks` and modify GUI or deployment files a
   docker run -d \
     --name subghz-gui \
     --pull always \
-    -p 127.0.0.1:8000:8000 \
+    -p 7915:8000 \
     -e DEVICE_MODE=real \
     -e ESP_BASE_URL=http://192.168.1.195 \
-    -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+    -e ALLOWED_HOSTS=localhost,127.0.0.1,*.ts.net,*.local \
     -v subghz-signals:/app/data \
     --label com.centurylinklabs.watchtower.enable=true \
     --label com.centurylinklabs.watchtower.scope=subghz-remote \
@@ -52,7 +52,7 @@ Pushes to `main` that pass `Offline checks` and modify GUI or deployment files a
     --restart unless-stopped \
     ghcr.io/rh45-one/subghz-remote-esp8266-gui:latest
   ```
-  *(Replace `http://192.168.1.195` with your ESP8266 LAN IP if different, and append your Tailscale Serve hostname to `ALLOWED_HOSTS` when exposing over Tailscale HTTPS.)*
+  *(Private LAN IPs, Tailscale `100.x.y.z` IPs, and `*.ts.net` hostnames are accepted automatically. Replace `http://192.168.1.195` if your ESP8266 uses a different LAN IP.)*
 - **Pull / manual update with Docker Compose (preserving the `signals` volume):**
   ```sh
   docker compose -f gui/docker-compose.yml pull

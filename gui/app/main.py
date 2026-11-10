@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -6,7 +7,6 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .device import DeviceError, DeviceRelay, SimulatedDevice, GET_ENDPOINTS, POST_ENDPOINTS
 from .flipper_sub import export_sub, parse_sub
@@ -14,6 +14,35 @@ from .models import Envelope, ImportRequest, Signal, Waveform
 from .signal_store import SignalStore
 
 STATIC = Path(__file__).parent / "static"
+TAILSCALE_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _host_allowed(raw_host: str, patterns: list[str], allow_private_networks: bool) -> bool:
+    if not raw_host:
+        return False
+    try:
+        parsed = urlsplit(f"//{raw_host}")
+        hostname = (parsed.hostname or "").lower()
+    except ValueError:
+        return False
+    if not hostname:
+        return False
+    for pattern in patterns:
+        candidate = pattern.strip().lower().strip("[]")
+        if not candidate:
+            continue
+        if hostname == candidate or (candidate.startswith("*.") and hostname.endswith(candidate[1:])):
+            return True
+    if allow_private_networks:
+        if hostname.endswith(".ts.net") or hostname.endswith(".local"):
+            return True
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_loopback or addr.is_private or (addr.version == 4 and addr in TAILSCALE_CGNAT):
+                return True
+        except ValueError:
+            pass
+    return False
 
 
 def create_app(store_path: Path | None = None, device=None, allowed_hosts=None) -> FastAPI:
@@ -24,13 +53,15 @@ def create_app(store_path: Path | None = None, device=None, allowed_hosts=None) 
     app.state.device = device if device is not None else (
         SimulatedDevice() if mode == "simulated" else DeviceRelay(os.getenv("ESP_BASE_URL", "")))
     app.state.store = SignalStore(store_path or Path(os.getenv("SIGNALS_PATH", "/app/data/signals.json")))
-    hosts = allowed_hosts or os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+    hosts = [h.strip() for h in (allowed_hosts or os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],*.ts.net,*.local").split(",")) if h.strip()]
     if "*" in hosts:
         raise ValueError("Explicit ALLOWED_HOSTS required; wildcard origin exposure is unsafe")
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False)
+    allow_private = allowed_hosts is None
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
+        if not _host_allowed(request.headers.get("host", ""), hosts, allow_private):
+            return PlainTextResponse("Invalid host header", status_code=400)
         if request.method in {"POST", "PUT", "DELETE"}:
             if request.headers.get("x-requested-with") != "subghz-gui":
                 return JSONResponse({"error": "Same-origin application header required"}, status_code=403)

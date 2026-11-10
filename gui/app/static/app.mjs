@@ -3,7 +3,7 @@ import {loadPreferences, savePreferences, resolveSlots} from './preferences.mjs'
 
 const $ = id => document.getElementById(id);
 const holds = new Set();
-let busy = false, mustChange = true, preview = null, operation = null;
+let busy = false, mustChange = true, preview = null, operation = null, simulatedMode = false;
 let records = [], activeTab = 'library', toastTimer = null;
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
 const preferences = loadPreferences(storage);
@@ -21,6 +21,12 @@ function message(text, kind = 'info') {
   if ($('unlock-dialog').open) $('unlock-error').textContent = text;
   if (kind !== 'error') toastTimer = setTimeout(() => { $('message').hidden = true; }, 6000);
 }
+function setStatusLight(state, label, detail) {
+  $('status-indicator').dataset.status = state;
+  $('status-indicator').title = detail;
+  $('status-label').textContent = label;
+  $('device-status-dot').dataset.status = state;
+}
 function updateArmed() {
   const seconds = session.remaining();
   $('armed').textContent = seconds ? (mustChange ? 'PIN SETUP' : `ARMED ${Math.ceil(seconds)}s`) : 'LOCKED';
@@ -36,12 +42,11 @@ function applyTheme() {
   document.documentElement.dataset.theme = preferences.theme;
   document.querySelector('meta[name="theme-color"]').content = preferences.theme === 'light' ? '#fffdf9' : '#080808';
   $('theme-toggle').setAttribute('aria-label', `Switch to ${preferences.theme === 'dark' ? 'light' : 'dark'} theme`);
-  for (const radio of document.querySelectorAll('[name="theme"]')) radio.checked = radio.value === preferences.theme;
   if (preview) drawPreview();
 }
 function selectTab(tab) {
   cancelHolds();
-  activeTab = ['library', 'converter', 'recorder', 'security', 'appearance'].includes(tab) ? tab : 'library';
+  activeTab = ['library', 'converter', 'recorder', 'security'].includes(tab) ? tab : 'library';
   for (const section of document.querySelectorAll('.tab')) section.hidden = section.id !== activeTab;
   for (const button of document.querySelectorAll('[data-tab]')) button.setAttribute('aria-pressed', String(button.dataset.tab === activeTab));
   $('preview').hidden = !preview || !['library', 'converter', 'recorder'].includes(activeTab);
@@ -106,18 +111,28 @@ async function armWithPin(pin) {
   operation = new AbortController();
   const controller = operation;
   try {
-    if (!crypto.subtle) throw new Error('Use HTTPS or localhost for Web Crypto');
     const challenge = await api('/api/device/auth/challenge', 'GET', undefined, controller.signal);
     let raw = await deriveKey(pin, challenge.salt); pin = '';
-    const key = await crypto.subtle.importKey('raw', raw, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']); raw.fill(0); raw = null;
+    let key = raw;
+    if (globalThis.crypto?.subtle) {
+      key = await crypto.subtle.importKey('raw', raw, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
+      raw.fill(0); raw = null;
+    }
     const envelope = await signEnvelope(key, challenge.nonce, '/api/auth/verify', '{}');
-    if (epoch !== session.epoch || document.hidden) throw new Error('Unlock cancelled');
+    if (epoch !== session.epoch || document.hidden) {
+      if (key instanceof Uint8Array) key.fill(0);
+      throw new Error('Unlock cancelled');
+    }
     const result = await api('/api/device/auth/verify', 'POST', envelope, controller.signal);
-    if (epoch !== session.epoch || document.hidden) throw new Error('Unlock cancelled');
+    if (epoch !== session.epoch || document.hidden) {
+      if (key instanceof Uint8Array) key.fill(0);
+      throw new Error('Unlock cancelled');
+    }
     mustChange = result.must_change_pin;
     session.arm(key, challenge.salt, epoch); updateArmed();
     $('unlock-dialog').close();
     $('message').hidden = true;
+    refreshDeviceStatus();
     if (mustChange) {
       showSettings('security');
       message('Default PIN verified. Choose a new PIN before sending or recording.');
@@ -142,7 +157,7 @@ $('open-settings').addEventListener('click', () => showSettings());
 $('back-remote').addEventListener('click', () => { location.hash = 'remote'; applyRoute(true); });
 window.addEventListener('hashchange', () => applyRoute());
 window.addEventListener('blur', () => session.lock());
-document.addEventListener('visibilitychange', () => { if (document.hidden) session.lock(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) session.lock(); else refreshDeviceStatus(); });
 window.addEventListener('pagehide', () => session.lock());
 setInterval(updateArmed, 100);
 
@@ -275,7 +290,7 @@ $('record').addEventListener('click', handler(() => withBusy(async () => {
   await signed('record/start', {frequency_hz: Number($('frequency').value), window_ms: 10000}); message('Capture requested. Check capture status in up to 10 seconds.');
 })));
 $('poll').addEventListener('click', handler(async () => { const result = await api('/api/device/record/status'); if (result.state === 2) showPreview(result); else message(`Capture state: ${['idle', 'recording', 'complete', 'timeout', 'overflow'][result.state] || 'unknown'}`); }));
-$('status').addEventListener('click', handler(async () => { $('diagnostics').textContent = JSON.stringify(await api('/api/device/status'), null, 2); $('diagnostics').hidden = false; }));
+$('status').addEventListener('click', handler(async () => { const st = await api('/api/device/status'); $('diagnostics').textContent = JSON.stringify(st, null, 2); $('diagnostics').hidden = false; refreshDeviceStatus(); }));
 $('change-form').addEventListener('submit', handler(() => withBusy(async () => {
   let pin = $('new-pin').value;
   let confirm = $('confirm-pin').value;
@@ -283,10 +298,13 @@ $('change-form').addEventListener('submit', handler(() => withBusy(async () => {
   try {
     if (!validPin(pin) || pin !== confirm || pin === DEFAULT_PIN) throw new Error('Use matching 4–12 digit PINs other than 0000');
     confirm = '';
-    const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+    const rand = new Uint8Array(16);
+    if (globalThis.crypto?.getRandomValues) crypto.getRandomValues(rand);
+    else for (let i = 0; i < 16; i++) rand[i] = Math.floor(Math.random() * 256);
+    const salt = hex(rand);
     const raw = await deriveKey(pin, salt); pin = '';
     const new_pin_key = hex(raw); raw.fill(0);
-    await signed('auth/change-pin', {salt, new_pin_key}); mustChange = false; message('PIN changed. Unlock again.');
+    await signed('auth/change-pin', {salt, new_pin_key}); mustChange = false; refreshDeviceStatus(); message('PIN changed. Unlock again.');
   } finally { pin = ''; confirm = ''; session.lock(); }
 })));
 for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => showSettings(button.dataset.tab));
@@ -294,13 +312,41 @@ $('theme-toggle').addEventListener('click', () => {
   preferences.theme = preferences.theme === 'dark' ? 'light' : 'dark';
   savePreferences(storage, preferences); applyTheme();
 });
-for (const radio of document.querySelectorAll('[name="theme"]')) radio.addEventListener('change', () => {
-  preferences.theme = radio.value; savePreferences(storage, preferences); applyTheme();
-});
+async function refreshDeviceStatus() {
+  try {
+    const st = await api('/api/device/status');
+    mustChange = Boolean(st.must_change_pin);
+    updateArmed();
+    if (st.simulated || simulatedMode) {
+      setStatusLight('simulated', 'SIMULATED', 'Simulated device — no RF hardware connected');
+    } else if (!st.cc1101_ok || !st.auth_ready) {
+      setStatusLight('offline', 'FAULT', 'ESP8266 reachable, but CC1101 or auth store is not ready');
+    } else if (st.locked_out) {
+      setStatusLight('warning', 'LOCKED OUT', `Brute-force lockout (${st.lockout_remaining_s}s remaining)`);
+    } else if (st.must_change_pin) {
+      setStatusLight('warning', 'PIN SETUP', 'ESP8266 online — change default PIN 0000 in Settings');
+    } else {
+      setStatusLight('online', 'ONLINE', 'ESP8266 + CC1101 online and ready');
+    }
+  } catch {
+    if (!simulatedMode) {
+      setStatusLight('offline', 'OFFLINE', 'ESP8266 unreachable');
+    }
+  }
+}
 applyTheme(); applyRoute(); updateArmed();
 api('/api/config').then(config => {
+  simulatedMode = Boolean(config.simulated);
   $('mode').textContent = config.simulated ? 'SIMULATED' : 'LIVE DEVICE';
   $('mode').title = config.simulated ? 'SIMULATED DEVICE — NO RF / NO HARDWARE' : 'Real device mode — requires configured ESP8266';
   $('settings-mode').textContent = config.simulated ? 'SIMULATED DEVICE / NO RF' : 'REAL DEVICE / AUTHENTICATION REQUIRED';
-}).catch(error => { $('mode').textContent = 'OFFLINE'; $('settings-mode').textContent = 'DEVICE OFFLINE'; message(error.message, 'error'); });
+  if (config.simulated) setStatusLight('simulated', 'SIMULATED', 'Simulated device — no RF hardware connected');
+  refreshDeviceStatus();
+}).catch(error => {
+  $('mode').textContent = 'OFFLINE';
+  $('settings-mode').textContent = 'DEVICE OFFLINE';
+  setStatusLight('offline', 'OFFLINE', 'Backend or ESP8266 offline');
+  message(error.message, 'error');
+});
+setInterval(() => { if (!document.hidden) refreshDeviceStatus(); }, 10000);
 refreshLibrary().catch(error => message(error.message, 'error'));

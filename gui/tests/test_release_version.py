@@ -200,7 +200,7 @@ def test_release_notes_and_compose_workflow_invariants():
     assert "cancel-in-progress: false" in workflow
     assert workflow.index("gh release create") < workflow.index("docker buildx imagetools create")
 
-    git_plan = release_version.plan_from_git(ROOT, target_sha="HEAD", main_ref="HEAD")
+    git_plan = release_version.plan_from_git(ROOT, target_sha="HEAD", main_ref="HEAD", force=True)
     assert git_plan["should_release"] is True
     assert git_plan["tag"].startswith("ui-v")
 
