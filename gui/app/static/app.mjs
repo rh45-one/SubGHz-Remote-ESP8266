@@ -4,7 +4,7 @@ import {loadPreferences, savePreferences, resolveSlots} from './preferences.mjs'
 const $ = id => document.getElementById(id);
 const holds = new Set();
 let busy = false, mustChange = true, preview = null, operation = null, simulatedMode = false;
-let records = [], activeTab = 'library', toastTimer = null;
+let records = [], activeTab = 'library', toastTimer = null, appliedHash = null;
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
 const preferences = loadPreferences(storage);
 const session = new ArmedSession(undefined, () => {
@@ -51,7 +51,9 @@ function selectTab(tab) {
   for (const button of document.querySelectorAll('[data-tab]')) button.setAttribute('aria-pressed', String(button.dataset.tab === activeTab));
   $('preview').hidden = !preview || !['library', 'converter', 'recorder'].includes(activeTab);
 }
-function applyRoute(focus = false) {
+function applyRoute(focus = false, fromHashChange = false) {
+  if (fromHashChange && location.hash === appliedHash) return;
+  appliedHash = location.hash;
   cancelHolds();
   const settings = location.hash.startsWith('#settings');
   $('remote-page').hidden = settings;
@@ -161,7 +163,7 @@ $('unlock-dialog').addEventListener('cancel', () => session.lock());
 $('unlock-dialog').addEventListener('close', () => { $('pin').value = ''; $('unlock-error').textContent = ''; });
 $('open-settings').addEventListener('click', () => showSettings());
 $('back-remote').addEventListener('click', () => { location.hash = 'remote'; applyRoute(true); });
-window.addEventListener('hashchange', () => applyRoute());
+window.addEventListener('hashchange', () => applyRoute(false, true));
 window.addEventListener('blur', () => session.lock());
 document.addEventListener('visibilitychange', () => { if (document.hidden) session.lock(); else refreshDeviceStatus(); });
 window.addEventListener('pagehide', () => session.lock());

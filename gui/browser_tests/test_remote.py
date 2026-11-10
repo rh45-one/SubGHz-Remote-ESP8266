@@ -69,6 +69,8 @@ def configure_pin(page):
     expect(page.locator("#message")).to_have_text("PIN changed. Unlock again.")
     unlock(page, "9876")
     page.locator("#back-remote").click()
+    expect(page).to_have_url(re.compile(r"#remote$"))
+    expect(page.locator("#remote-page")).to_be_visible()
     expect(page.locator("#armed")).to_contain_text("ARMED")
 
 
