@@ -49,3 +49,377 @@ GUI writes require `X-Requested-With: subghz-gui`, JSON, explicit bounded Conten
 ## Security limits
 
 HMAC is not encryption or a password-hardening KDF. A captured MAC allows offline guessing of short numeric PINs; LAN HTTP exposes replacement `new_pin_key` during PIN changes. Restrict LAN access, use a long random PIN, secure the homelab, and use Tailscale HTTPS for the browser hop. Do not expose either service publicly. The firmware's failure limiter cannot stop Wi-Fi jamming, nonce replacement DoS, or physical credential replacement. Once a TX request has reached the device, locking/aborting the browser cannot retract it. A timeout is an **unknown outcome**, never a reason for automatic retry.
+
+---
+
+## Complete Request & Response Examples
+
+### Part 1: ESP8266 Hardware API (`http://192.168.1.195`)
+
+*(When calling via the Web GUI proxy instead of directly hitting the ESP8266, replace `/api/<endpoint>` with `/api/device/<endpoint>` and include header `X-Requested-With: subghz-gui`. Note that `signature` is still computed over the device path `/api/<endpoint>`.)*
+
+#### 1. `GET /api/status` — Health & CC1101 Status (Unauthenticated)
+Polled every 3 seconds by the Web UI status light to verify ESP8266 reachability and `cc1101_ok: true`.
+
+**Request:**
+```http
+GET /api/status HTTP/1.1
+Host: 192.168.1.195
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "version": "0.3.1",
+  "pin_min_length": 4,
+  "pin_max_length": 12,
+  "cc1101_ok": true,
+  "auth_ready": true,
+  "must_change_pin": true,
+  "locked_out": false,
+  "lockout_remaining_s": 0,
+  "uptime_s": 1420
+}
+```
+
+#### 2. `GET /api/auth/challenge` — Issue Single-Use Nonce
+**Request:**
+```http
+GET /api/auth/challenge HTTP/1.1
+Host: 192.168.1.195
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "salt": "00112233445566778899aabbccddeeff",
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "expires_in_ms": 10000
+}
+```
+
+#### 3. `POST /api/auth/verify` — Verify PIN (Unlock Remote)
+Signs `"{}"` with `HMAC-SHA256(pin_key, "<nonce>:/api/auth/verify:{}")`.
+
+**Request:**
+```http
+POST /api/auth/verify HTTP/1.1
+Host: 192.168.1.195
+Content-Type: application/json
+Content-Length: 132
+
+{
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "signature": "6c89c9e47f0a12b384e01c2d4a5b6c7d8e9f00112233445566778899aabbccdd",
+  "payload": "{}"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "must_change_pin": false
+}
+```
+
+#### 4. `POST /api/auth/change-pin` — Change PIN
+Signed with the **current** `pin_key`. Sends a new random 16-byte `salt` (32 hex chars) and `new_pin_key = SHA256(bytes.fromhex(new_salt) + new_pin.encode('utf-8')).hexdigest()` (64 hex chars).
+
+**Request:**
+```http
+POST /api/auth/change-pin HTTP/1.1
+Host: 192.168.1.195
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "signature": "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80",
+  "payload": "{\"salt\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"new_pin_key\":\"4e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f\"}"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "ok": true
+}
+```
+
+#### 5A. `POST /api/transmit` — Transmit Raw Pulse Timings (`RAW_Data`)
+Sends alternating signed microsecond pulses (`+mark` ON, `-space` OFF, 2–512 pulses, positive first) and `repeats` (1–20).
+
+**Request:**
+```http
+POST /api/transmit HTTP/1.1
+Host: 192.168.1.195
+Content-Type: application/json
+Content-Length: 205
+
+{
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "signature": "3f4e5d6c7b8a9900112233445566778899aabbccddeeff001122334455667788",
+  "payload": "{\"frequency_hz\":433920000,\"pulses\":[350,-1050,1050,-350,350,-10850],\"repeats\":3}"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "ok": true
+}
+```
+
+#### 5B. `POST /api/transmit` — Transmit Fixed Code (`rc-switch` Protocol 1)
+Alternative `payload` format for 24-bit or 32-bit fixed codes (`Princeton` / PT2262 / EV1527):
+
+**Request:**
+```http
+POST /api/transmit HTTP/1.1
+Host: 192.168.1.195
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "signature": "7a8b9c0d1e2f3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3",
+  "payload": "{\"frequency_hz\":433920000,\"code\":5592405,\"bits\":24,\"pulse_us\":350,\"protocol\":1,\"repeats\":5}"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "ok": true
+}
+```
+
+#### 6. `POST /api/record/start` — Start RF Capture Window
+Arms the CC1101 receiver at `frequency_hz` (`300–348 MHz`, `387–464 MHz`, or `779–928 MHz`) for up to `10000` ms (`window_ms`).
+
+**Request:**
+```http
+POST /api/record/start HTTP/1.1
+Host: 192.168.1.195
+Content-Type: application/json
+Content-Length: 178
+
+{
+  "nonce": "ffeeddccbbaa99887766554433221100",
+  "signature": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "payload": "{\"frequency_hz\":433920000,\"window_ms\":10000}"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "ok": true
+}
+```
+
+#### 7. `GET /api/record/status` — Poll RF Capture Result
+`state` values: `0` = idle, `1` = recording, `2` = complete, `3` = timeout, `4` = overflow.
+
+**Request:**
+```http
+GET /api/record/status HTTP/1.1
+Host: 192.168.1.195
+```
+
+**Response while recording (`state: 1`):**
+```json
+{
+  "state": 1
+}
+```
+
+**Response when complete (`state: 2`):**
+```json
+{
+  "state": 2,
+  "frequency_hz": 433920000,
+  "repeats": 1,
+  "pulses": [350, -1050, 350, -1050, 1050, -350, 350, -10850]
+}
+```
+
+---
+
+### Part 2: Docker Web GUI API
+
+*(All write requests `POST`, `PUT`, `DELETE` require header `X-Requested-With: subghz-gui`.)*
+
+#### 8. `GET /api/config` — Check Simulated vs. Real Mode
+**Request:**
+```http
+GET /api/config HTTP/1.1
+Host: localhost:7915
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "simulated": false
+}
+```
+
+#### 9. `GET /api/signals` — List Saved Signals in Docker Volume
+**Request:**
+```http
+GET /api/signals HTTP/1.1
+Host: localhost:7915
+```
+
+**Response (`200 OK`):**
+```json
+[
+  {
+    "id": "a1b2c3d4e5f6",
+    "name": "Garage Door",
+    "category": "Home",
+    "frequency_hz": 433920000,
+    "pulses": [350, -1050, 1050, -350, 350, -10850],
+    "repeats": 3,
+    "source_protocol": "Princeton"
+  }
+]
+```
+
+#### 10. `POST /api/signals` — Save a New Signal
+**Request:**
+```http
+POST /api/signals HTTP/1.1
+Host: localhost:7915
+X-Requested-With: subghz-gui
+Content-Type: application/json
+Content-Length: 147
+
+{
+  "name": "Garage Door",
+  "category": "Home",
+  "frequency_hz": 433920000,
+  "pulses": [350, -1050, 1050, -350, 350, -10850],
+  "repeats": 3,
+  "source_protocol": "RAW"
+}
+```
+
+**Response (`201 Created`):**
+```json
+{
+  "id": "a1b2c3d4e5f6",
+  "name": "Garage Door",
+  "category": "Home",
+  "frequency_hz": 433920000,
+  "pulses": [350, -1050, 1050, -350, 350, -10850],
+  "repeats": 3,
+  "source_protocol": "RAW"
+}
+```
+
+#### 11. `PUT /api/signals/{signal_id}` — Update / Rename a Signal
+**Request:**
+```http
+PUT /api/signals/a1b2c3d4e5f6 HTTP/1.1
+Host: localhost:7915
+X-Requested-With: subghz-gui
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "name": "Main Garage",
+  "category": "Driveway",
+  "frequency_hz": 433920000,
+  "pulses": [350, -1050, 1050, -350, 350, -10850],
+  "repeats": 3,
+  "source_protocol": "RAW"
+}
+```
+
+**Response (`200 OK`):** Returns the updated signal object.
+
+#### 12. `DELETE /api/signals/{signal_id}` — Delete a Signal
+**Request:**
+```http
+DELETE /api/signals/a1b2c3d4e5f6 HTTP/1.1
+Host: localhost:7915
+X-Requested-With: subghz-gui
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "ok": true
+}
+```
+
+#### 13. `GET /api/signals/{signal_id}/export` — Download Signal as Flipper `.sub`
+**Request:**
+```http
+GET /api/signals/a1b2c3d4e5f6/export HTTP/1.1
+Host: localhost:7915
+```
+
+**Response (`200 OK`, `text/plain`):**
+```text
+Filetype: Flipper SubGhz RAW File
+Version: 1
+Frequency: 433920000
+Preset: FuriHalSubGhzPresetOok650Async
+Protocol: RAW
+RAW_Data: 350 -1050 1050 -350 350 -10850
+```
+
+#### 14. `POST /api/flipper/convert` — Parse & Synthesize a Flipper Zero `.sub` File
+Supports `RAW`, `BinRAW`, `Princeton`, `CAME`, `Nice FLO`, `Linear`, `GateTX`, and `Holtek`.
+
+**Request:**
+```http
+POST /api/flipper/convert HTTP/1.1
+Host: localhost:7915
+X-Requested-With: subghz-gui
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "name": "Imported Key",
+  "text": "Filetype: Flipper SubGhz Key File\nVersion: 1\nFrequency: 433920000\nPreset: FuriHalSubGhzPresetOok650Async\nProtocol: Princeton\nBit: 24\nKey: 00 00 00 00 00 55 55 55\nTE: 350\n"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "name": "Imported Key",
+  "category": "",
+  "frequency_hz": 433920000,
+  "pulses": [350, -1050, 1050, -350, 350, -10850],
+  "repeats": 3,
+  "source_protocol": "Princeton",
+  "warnings": []
+}
+```
+
+#### 15. `POST /api/flipper/export` — Convert Waveform Array to `.sub` Text
+**Request:**
+```http
+POST /api/flipper/export HTTP/1.1
+Host: localhost:7915
+X-Requested-With: subghz-gui
+Content-Type: application/json
+Content-Length: 73
+
+{
+  "frequency_hz": 433920000,
+  "pulses": [350, -1050, 350, -10850],
+  "repeats": 2
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "text": "Filetype: Flipper SubGhz RAW File\nVersion: 1\nFrequency: 433920000\nPreset: FuriHalSubGhzPresetOok650Async\nProtocol: RAW\nRAW_Data: 350 -1050 350 -10850 350 -1050 350 -10850\n"
+}
+```
