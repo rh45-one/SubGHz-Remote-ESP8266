@@ -222,7 +222,7 @@ function renderRemote() {
     button.disabled = !signal;
     button.setAttribute('aria-label', signal ? `${signal.name}. Hold for 0.8 seconds to send.` : `Button ${i + 1}: not assigned. Configure in Settings.`);
     $(`remote-name-${i + 1}`).textContent = signal?.name || 'Not assigned';
-    $(`remote-note-${i + 1}`).textContent = signal ? `HOLD TO SEND · ${(signal.frequency_hz / 1e6).toFixed(2)} MHz` : 'SET UP IN SETTINGS';
+    $(`remote-note-${i + 1}`).textContent = signal ? 'HOLD TO SEND' : 'SET UP IN SETTINGS';
     const select = $(`slot-${i + 1}`);
     select.replaceChildren(new Option('Not assigned', ''));
     for (const record of records) select.add(new Option(record.name, record.id));

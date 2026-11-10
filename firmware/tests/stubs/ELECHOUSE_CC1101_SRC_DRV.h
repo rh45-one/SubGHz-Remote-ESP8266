@@ -13,6 +13,8 @@ struct FakeRadio {
     void SpiStrobe(uint8_t) { idle = true; }
     void setCCMode(int) { regs[0] = regs[2] = 0x0D; }
     void setModulation(int) {}
+    void setSyncMode(int) {}
+    void setPA(int) {}
     void setMHZ(float) {}
     void setRxBW(float) {}
     void SetRx() { idle = false; }

@@ -18,3 +18,7 @@ inline void noInterrupts() {}
 inline void interrupts() {}
 inline void delayMicroseconds(uint32_t us) { clockUs += us; }
 inline void yield() {}
+struct EspClass {
+    void wdtFeed() const {}
+};
+constexpr EspClass ESP{};
