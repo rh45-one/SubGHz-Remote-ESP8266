@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  test:
+  gui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,12 +15,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: pip install -r gui/requirements-dev.txt platformio==6.1.19 pip-audit==2.10.1
+      - run: pip install -r gui/requirements-dev.txt pip-audit==2.10.1
       - run: python -m pytest -q
         working-directory: gui
       - run: node --test gui/tests/safety.test.mjs
+      - run: pip-audit -r gui/requirements.txt
+      - run: docker build -t subghz-gui ./gui
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # PlatformIO's own server dependency pins differ from the GUI. Keep them isolated.
+      - run: pip install platformio==6.1.19
       - run: g++ -std=c++14 -Wall -Wextra -Werror -fsanitize=address,undefined -Ifirmware/tests/stubs -Ifirmware/include firmware/tests/test_engine.cpp firmware/src/subghz_engine.cpp -o /tmp/engine-tests
       - run: /tmp/engine-tests
       - run: pio run -d firmware -e nodemcuv2 -e nodemcuv2-network-check
-      - run: pip-audit -r gui/requirements.txt
-      - run: docker build -t subghz-gui ./gui

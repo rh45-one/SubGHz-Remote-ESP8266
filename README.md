@@ -109,7 +109,7 @@ The resulting binary is under `$env:PLATFORMIO_BUILD_DIR\nodemcuv2\firmware.bin`
 
 ## GUI tests & storage
 
-From `gui/`, run `python -m pytest -q`; from the project root run `node --test gui/tests/safety.test.mjs`. Tests use simulated devices or HTTP mock transports only. Firmware host tests are described above; CI also checks a network-enabled firmware build, dependency vulnerabilities, and the Docker image build.
+From `gui/`, run `python -m pytest -q`; from the project root run `node --test gui/tests/safety.test.mjs`. Tests use simulated devices or HTTP mock transports only. Keep PlatformIO in a **separate Python environment**: its tooling dependency pins conflict with the GUI's current Starlette version. Firmware host tests are described above; CI also checks a network-enabled firmware build, dependency vulnerabilities, and the Docker image build.
 
 Signals are stored atomically in `/app/data/signals.json` in the Docker named volume. Back up that volume; do not use `docker compose down -v` unless intentionally deleting the library. Run **one worker/container per volume**: the store serializes threads but not multiple processes. A damaged JSON file is retained rather than silently replaced. The UI supports preview, save, metadata edits, delete, and RAW `.sub` export.
 
