@@ -1,0 +1,14 @@
+firmware/.pio/
+*.obj
+*.exe
+*.ilk
+*.pdb
+firmware/include/secrets.h
+gui/data/*.json
+!gui/data/signals.example.json
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+pytest-cache-files-*/
+engine-tests

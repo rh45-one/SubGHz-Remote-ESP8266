@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SubGHz Remote</title><link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/app.mjs"></script>
+</head>
+<body>
+<header><h1>SubGHz Remote</h1><strong id="mode">Checking device mode…</strong><p id="armed" role="status">Locked</p><progress id="countdown" max="60" value="0"></progress></header>
+<main>
+  <section aria-labelledby="unlock-title"><h2 id="unlock-title">Arm controls</h2>
+    <form id="unlock-form"><label>PIN <input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="off" required></label><button>Unlock for 60 seconds</button></form>
+    <button id="lock" type="button">Lock now</button><p>Hold a send button for 0.8 seconds. Sending, hiding this page, or switching apps locks it immediately. Use only authorized fixed-code devices.</p>
+  </section>
+  <nav aria-label="Sections"><button type="button" data-tab="remote">Remote</button><button type="button" data-tab="converter">Flipper converter</button><button type="button" data-tab="recorder">Recorder</button><button type="button" data-tab="security">Security & diagnostics</button></nav>
+  <p id="message" role="status" aria-live="polite">Ready. No action transmits automatically.</p>
+  <section id="remote" class="tab"><h2>Signal library</h2><button id="refresh" type="button">Refresh library</button><div id="signals"></div></section>
+  <section id="converter" class="tab" hidden><h2>Flipper .sub converter</h2>
+    <label>File <input id="sub-file" type="file" accept=".sub,text/plain"></label>
+    <label>Or paste .sub text <textarea id="sub-text" rows="8" maxlength="262144"></textarea></label>
+    <button id="convert" type="button">Convert & preview (no transmission)</button>
+  </section>
+  <section id="recorder" class="tab" hidden><h2>Live recorder</h2>
+    <label>Frequency (Hz) <input id="frequency" type="number" value="433920000" step="1"></label>
+    <button id="record" type="button">Start authenticated 10-second capture</button><button id="poll" type="button">Check capture</button><p>No recording starts until requested. The device returns to idle automatically.</p>
+  </section>
+  <section id="preview" hidden><h2>Waveform preview</h2><p id="preview-info"></p><canvas id="waveform" width="900" height="150" aria-label="Pulse waveform preview"></canvas>
+    <label>Name <input id="signal-name" value="New signal" maxlength="80"></label><label>Category <input id="signal-category" maxlength="80"></label>
+    <button id="save" type="button">Save to library</button><button id="export-preview" type="button">Export .sub</button><button id="test-send" class="hold" type="button">Hold 0.8s to test send</button>
+  </section>
+  <section id="security" class="tab" hidden><h2>Security & diagnostics</h2><button id="status" type="button">Refresh device status</button><pre id="diagnostics"></pre>
+    <form id="change-form"><label>New PIN (6–12 digits) <input id="new-pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="off" required></label>
+      <label>Confirm new PIN <input id="confirm-pin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="off" required></label><button>Change PIN & lock</button></form>
+    <p>Unlock with the current PIN first. Default PIN 123456 must be changed before RF operations. Credentials are never saved in this browser or sent to the GUI backend.</p>
+  </section>
+</main><footer>Software preview: hardware acceptance remains pending. Network HMAC is not encryption; keep the device on a trusted LAN and serve this UI over Tailscale HTTPS.</footer>
+</body></html>
