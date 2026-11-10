@@ -2,6 +2,12 @@ name: Offline checks
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref or commit SHA to validate
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -9,23 +15,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: pip install -r gui/requirements-dev.txt pip-audit==2.10.1
+      - run: pip install -r gui/requirements-browser.txt pip-audit==2.10.1
+      - run: python -m playwright install --with-deps chromium
       - run: python -m pytest -q
         working-directory: gui
       - run: node --test gui/tests/safety.test.mjs
       - run: pip-audit -r gui/requirements.txt
+      - run: docker compose -f gui/docker-compose.yml config --quiet
+      - run: docker compose -f gui/docker-compose.yml -f gui/docker-compose.dev.yml config --quiet
       - run: docker build -t subghz-gui ./gui
       - run: python gui/tests/docker_smoke.py
   firmware:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

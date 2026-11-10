@@ -65,7 +65,7 @@ class SimulatedDevice:
     def __init__(self, clock=time.monotonic):
         self.clock = clock
         self.salt = secrets.token_hex(16)
-        self.key = hashlib.sha256(bytes.fromhex(self.salt) + b"123456").digest()
+        self.key = hashlib.sha256(bytes.fromhex(self.salt) + b"0000").digest()
         self.must_change = True
         self.nonce = None
         self.expires = 0.0
@@ -78,7 +78,8 @@ class SimulatedDevice:
         now = self.clock()
         locked = now < self.locked_until
         if endpoint == "status":
-            return {"version": "simulated-0.3.0", "simulated": True, "cc1101_ok": True,
+            return {"version": "simulated-0.3.1", "simulated": True, "cc1101_ok": True,
+                    "pin_min_length": 4, "pin_max_length": 12,
                     "auth_ready": True, "must_change_pin": self.must_change, "locked_out": locked,
                     "lockout_remaining_s": max(0, int(self.locked_until-now+0.999)), "uptime_s": int(now)}
         if locked:

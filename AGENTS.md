@@ -76,6 +76,7 @@ These invariants were discovered and verified on the physical hardware (`COM4`, 
 3. Client/GUI computes `signature = HMAC_SHA256(pin_key, nonce_ascii + ":" + action_string)` and includes `nonce` and `signature` in the request to the ESP8266.
 4. ESP8266 verifies that `nonce` is active and unexpired, invalidates `nonce` immediately (single-use to prevent Wi-Fi replay), and checks `signature` in constant time using BearSSL `br_hmac`.
 5. After **5 consecutive failed verifications**, the ESP8266 locks out all authenticated endpoints for **60 seconds** (`HTTP 429 Too Many Requests`).
+6. PIN entry and changes accept **4–12 ASCII digits**, preserving leading zeroes. The factory default is **`0000`**, with mandatory change before RF operations. Updating firmware must preserve already-provisioned authentication material rather than silently resetting a configured PIN.
 
 ### 4.3 Mobile Anti-Accidental-Trigger UX Rules
 1. **60-Second Armed Window + Auto-Lock**:
@@ -83,6 +84,9 @@ These invariants were discovered and verified on the physical hardware (`COM4`, 
    - Immediately wipe the PIN from memory and lock the UI upon: (a) completing a transmission, (b) 60s timeout expiration, or (c) `document.visibilitychange` (`hidden`) / `window.blur`.
 2. **Hold-for-0.8s to Transmit**:
    - Single taps on signal buttons must **never** trigger transmission. Require a continuous `800 ms` press-and-hold gesture (with visual progress feedback and `navigator.vibrate` haptic confirmation) while unlocked.
+3. **Minimal Remote Home & Settings**:
+   - Home is a compact two-button remote on desktop and mobile. Put signal management, conversion, recording, security, and appearance behind Settings; PIN entry is a transient dialog, never a queued transmission.
+   - Use plain black/orange and white/orange themes with self-hosted pixel typography. Browser persistence may contain only theme and assigned signal IDs, never PINs or signing keys. Removing an assigned signal must leave a vacant slot rather than silently remapping an action.
 
 ---
 

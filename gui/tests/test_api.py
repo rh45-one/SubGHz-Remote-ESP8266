@@ -23,7 +23,7 @@ def fixture(tmp_path):
         yield client, device, clock
 
 
-def signed(client, endpoint, args=None, pin="123456", challenge=None):
+def signed(client, endpoint, args=None, pin="0000", challenge=None):
     challenge = challenge or client.get("/api/device/auth/challenge").json()
     key = hashlib.sha256(bytes.fromhex(challenge["salt"]) + pin.encode()).digest()
     payload = json.dumps(args or {}, separators=(",", ":"))
@@ -37,7 +37,7 @@ def post(client, endpoint, envelope):
 
 def change_pin(client):
     salt = "ab" * 16
-    key = hashlib.sha256(bytes.fromhex(salt) + b"987654").hexdigest()
+    key = hashlib.sha256(bytes.fromhex(salt) + b"9876").hexdigest()
     assert post(client, "auth/change-pin", signed(client, "auth/change-pin", {"salt": salt, "new_pin_key": key})).status_code == 200
 
 
@@ -73,13 +73,13 @@ def test_default_pin_change_capture_and_simulated_send(fixture):
     assert post(client, "transmit", signed(client, "transmit", wave)).status_code == 403
     change_pin(client)
     assert post(client, "auth/verify", signed(client, "auth/verify")).status_code == 401
-    assert post(client, "record/start", signed(client, "record/start", {"frequency_hz": 433920000, "window_ms": 10000}, "987654")).status_code == 200
+    assert post(client, "record/start", signed(client, "record/start", {"frequency_hz": 433920000, "window_ms": 10000}, "9876")).status_code == 200
     capture = client.get("/api/device/record/status").json()
     assert capture["state"] == 2 and len(capture["pulses"]) == 50
-    assert post(client, "transmit", signed(client, "transmit", wave, "987654")).status_code == 200
+    assert post(client, "transmit", signed(client, "transmit", wave, "9876")).status_code == 200
     assert device.transmissions == 1
     wave["pulses"][0] = -350
-    assert post(client, "transmit", signed(client, "transmit", wave, "987654")).status_code == 400
+    assert post(client, "transmit", signed(client, "transmit", wave, "9876")).status_code == 400
     assert device.transmissions == 1
 
 
@@ -140,7 +140,7 @@ def test_mocked_relay_preserves_signed_payload_and_never_retries():
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("status,content", [(200, b"x" * 16385), (200, b"[]"), (200, b"not json"), (302, b'{}')])
+@pytest.mark.parametrize("status,content", [(200, b"x" * 16385), (200, b"[]"), (200, b"not json"), (302, b'{}')], ids=["oversized", "non-object", "non-json", "redirect"])
 def test_mocked_relay_rejects_bad_responses(status, content):
     from app.device import DeviceError
     relay = DeviceRelay("http://device.invalid", transport=httpx.MockTransport(lambda request: httpx.Response(status, content=content)))

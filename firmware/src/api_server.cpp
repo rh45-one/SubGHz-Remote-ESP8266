@@ -1,5 +1,6 @@
 #include "api_server.h"
 #include "auth_manager.h"
+#include "auth_policy.h"
 #include "subghz_engine.h"
 #include "http_framing.h"
 #include <ESP8266WiFi.h>
@@ -29,7 +30,9 @@ void error(int code, const char* message) {
 void dispatch(bool post) {
     JsonDocument response;
     if (!post && path == "/api/status") {
-        response["version"] = "0.3.0";
+        response["version"] = "0.3.1";
+        response["pin_min_length"] = PinPolicy::MIN_LENGTH;
+        response["pin_max_length"] = PinPolicy::MAX_LENGTH;
         response["cc1101_ok"] = radioOk;
         response["auth_ready"] = AuthManager::ready();
         response["must_change_pin"] = AuthManager::mustChangePin();

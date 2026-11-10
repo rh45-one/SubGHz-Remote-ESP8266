@@ -26,6 +26,8 @@ void checkIdle() {
 }
 
 int main() {
+    assert(PinPolicy::MIN_LENGTH == 4 && PinPolicy::MAX_LENGTH == 12);
+    assert(strcmp(PinPolicy::DEFAULT_PIN, "0000") == 0 && sizeof(PinPolicy::DEFAULT_PIN) - 1 == 4);
     AuthPolicy policy;
     assert(!policy.consume(0));
     policy.issue(0); assert(policy.consume(9999)); assert(!policy.consume(9999));

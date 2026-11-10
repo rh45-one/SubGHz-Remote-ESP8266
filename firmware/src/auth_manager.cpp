@@ -68,7 +68,7 @@ bool AuthManager::begin() {
         br_sha256_context ctx;
         br_sha256_init(&ctx);
         br_sha256_update(&ctx, saltBytes, sizeof(saltBytes));
-        br_sha256_update(&ctx, "123456", 6);
+        br_sha256_update(&ctx, PinPolicy::DEFAULT_PIN, sizeof(PinPolicy::DEFAULT_PIN) - 1);
         br_sha256_out(&ctx, pinKey);
         mustChange = true;
         if (!persist(saltHex, pinKey, mustChange)) return false;

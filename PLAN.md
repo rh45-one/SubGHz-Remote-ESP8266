@@ -70,7 +70,7 @@ Because the ESP8266 communicates over LAN HTTP while the mobile browser connects
 
 ### Phase 3: Secure ESP8266 REST API & Challenge-Response PIN Auth (Implemented; device integration verification pending)
 - **Challenge-Response Auth Manager (`auth_manager`)**:
-  - Persists `salt` (16 bytes) and `pin_key = SHA256(salt || PIN)` in `/auth.json` on `LittleFS` (initial default PIN `123456` with `must_change_pin = true`).
+   - Persists `salt` (16 bytes) and `pin_key = SHA256(salt || PIN)` in `/auth.json` on `LittleFS` (initial default PIN `0000`, UI policy 4–12 digits, with `must_change_pin = true`). Firmware updates preserve already-provisioned credentials.
   - Generates 16-byte single-use `nonce` tokens with a 10-second TTL.
   - Verifies `HMAC-SHA256(pin_key, nonce || payload)` using BearSSL (`br_hmac_key_context` / `br_hmac_context`) and constant-time comparison.
   - Enforces a 60-second hardware lockout after 5 consecutive failed attempts.
@@ -93,16 +93,17 @@ Because the ESP8266 communicates over LAN HTTP while the mobile browser connects
   - **`Protocol: BinRAW`**: Expands `Te`, `Bit_RAW`, and `Data_RAW` hex payloads into signed microsecond timings.
   - **Export to `.sub`**: Exports any saved signal in the Docker library as a standard `.sub` file.
 - **FastAPI Backend & Mobile Web UI (`gui/`)**:
-  - **Remote & PIN Pad Tab**: Tactile PIN entry (60s armed window, auto-lock on send/hide) + **Hold-for-0.8s** trigger buttons.
-  - **Flipper `.sub` Converter Tab**: Upload/paste `.sub` files, preview waveform, test-send, or save to the Docker signal library.
-  - **Live Recorder Tab**: Trigger ESP8266 RF capture, preview waveform, test replay, save to the Docker signal library, or export `.sub`.
-   - **Security & Diagnostics Tab**: Change ESP8266 PIN, inspect CC1101 status, and view lockout/auth health.
+   - **Two-button Remote Home**: Compact daily-use screen, PIN dialog, visible 60s armed window, auto-lock on send/hide, and **Hold-for-0.8s** trigger buttons. No management tools on the mobile home screen.
+   - **Settings → Signals**: Library CRUD, preview/export, and assignments for the two remote buttons.
+   - **Settings → Converter**: Upload/paste `.sub` files, preview waveform, test-send, or save to the Docker signal library.
+   - **Settings → Recorder**: Trigger ESP8266 RF capture, preview waveform, test replay, save to the Docker signal library, or export `.sub`.
+   - **Settings → Security / Appearance**: Change PIN, inspect CC1101 status, and select black/orange or white/orange mode. Self-hosted pixel typography and plain backgrounds, inspired by Flipper-style interfaces.
 
 ## 4. Current software delivery & next work
 
 - Firmware stores only salted PIN material; BearSSL signs/verifies the exact contract in `docs/API.md`. Every protected operation consumes a nonce, has brute-force lockout, and blocks RF use of the default credential. PIN changes bind replacement material to the old-key signature.
 - Bounded HTTP framing is checked before allocating request bodies; Wi-Fi is opt-in through gitignored `secrets.h`. LittleFS fails closed without autoformat; local serial `F` is explicit recovery only when initialization failed.
-- Docker GUI owns signal persistence. Browser-only Web Crypto signing means no backend PIN environment variable, volume, or server session secret. Arming retains a non-extractable signing key, not the plaintext PIN, and drops references on send/timeout/hide/blur/page exit. Test-send and library buttons share the same 800 ms hold gate.
+- Docker GUI owns signal persistence. Browser-only Web Crypto signing means no backend PIN environment variable, volume, or server session secret. Arming retains a non-extractable signing key, not the plaintext PIN, and drops references on send/timeout/hide/blur/page exit. Test-send and assigned remote buttons share the same 800 ms hold gate. Browser storage contains only display preferences and assigned signal IDs.
 - Converter supports OOK RAW, BinRAW, Princeton, CAME, Nice FLO, Linear, GateTX, and Holtek, with validation and warnings rather than unsupported protocol guessing. GUI has library CRUD, conversion, waveform previews, explicit recording, export, and diagnostics/PIN change.
 - Explicit offline simulator cannot connect to hardware. Tests use only fake GPIO/radio clocks, simulator requests, and mock HTTP transports. Dependency versions are pinned; runtime audit passes. CI builds both firmware variants and the Docker image.
 - **Remaining:** execute the physical/homelab acceptance checklist in `docs/VERIFICATION.md`, characterize RF capture segmentation/noise, validate ESP8266 heap/watchdog/flash behavior under load, and test on real mobile browsers. The simulator is not an emulator or proof of hardware safety. Local Docker daemon was unavailable; no hardware interaction occurred during this implementation.

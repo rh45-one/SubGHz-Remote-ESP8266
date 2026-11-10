@@ -1,0 +1,6 @@
+services:
+  gui:
+    build:
+      context: .
+    image: subghz-gui:local
+    pull_policy: build

@@ -1,6 +1,13 @@
 #pragma once
 #include <stdint.h>
 
+namespace PinPolicy {
+constexpr uint8_t MIN_LENGTH = 4;
+constexpr uint8_t MAX_LENGTH = 12;
+constexpr char DEFAULT_PIN[] = "0000";
+static_assert(sizeof(DEFAULT_PIN) - 1 >= MIN_LENGTH && sizeof(DEFAULT_PIN) - 1 <= MAX_LENGTH, "Factory PIN must meet the PIN policy");
+}
+
 // Wrap-safe timers; no heap, filesystem, or platform-specific cryptography.
 class AuthPolicy {
 public:

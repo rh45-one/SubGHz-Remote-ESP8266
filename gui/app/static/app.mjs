@@ -1,19 +1,78 @@
-import {ArmedSession, HoldGate, deriveKey, hex, signEnvelope} from './safety.mjs';
+import {ArmedSession, HoldGate, deriveKey, hex, signEnvelope, validPin, DEFAULT_PIN} from './safety.mjs';
+import {loadPreferences, savePreferences, resolveSlots} from './preferences.mjs';
 
 const $ = id => document.getElementById(id);
 const holds = new Set();
 let busy = false, mustChange = true, preview = null, operation = null;
+let records = [], activeTab = 'library', toastTimer = null;
+const storage = (() => { try { return window.localStorage; } catch { return null; } })();
+const preferences = loadPreferences(storage);
 const session = new ArmedSession(undefined, () => {
   for (const item of holds) item.cancel();
   operation?.abort(); operation = null;
   $('pin').value = ''; $('new-pin').value = ''; $('confirm-pin').value = '';
   updateArmed();
 });
-function message(text) { $('message').textContent = text; }
+function cancelHolds() { for (const item of holds) item.cancel(); }
+function message(text, kind = 'info') {
+  clearTimeout(toastTimer);
+  $('message').textContent = text;
+  $('message').hidden = false;
+  if ($('unlock-dialog').open) $('unlock-error').textContent = text;
+  if (kind !== 'error') toastTimer = setTimeout(() => { $('message').hidden = true; }, 6000);
+}
 function updateArmed() {
   const seconds = session.remaining();
-  $('armed').textContent = seconds ? `Armed: ${Math.ceil(seconds)}s${mustChange ? ' — PIN change required' : ''}` : 'Locked';
+  $('armed').textContent = seconds ? (mustChange ? 'PIN SETUP' : `ARMED ${Math.ceil(seconds)}s`) : 'LOCKED';
   $('countdown').value = seconds;
+  $('remote-hint').textContent = seconds ? (mustChange ? 'Change default PIN in Settings.' : 'Press and hold 0.8s.') : 'Unlock, then hold to send.';
+  $('unlock-remote-label').textContent = seconds ? 'Lock remote' : 'Unlock remote';
+  $('settings-unlock').textContent = seconds ? `Lock / ${Math.ceil(seconds)}s` : 'Unlock';
+  document.querySelector('.remote-body').dataset.armed = String(Boolean(seconds));
+  document.querySelector('.display-state use').setAttribute('href', seconds && !mustChange ? '#i-radio' : '#i-lock');
+}
+function applyTheme() {
+  cancelHolds();
+  document.documentElement.dataset.theme = preferences.theme;
+  document.querySelector('meta[name="theme-color"]').content = preferences.theme === 'light' ? '#fffdf9' : '#080808';
+  $('theme-toggle').setAttribute('aria-label', `Switch to ${preferences.theme === 'dark' ? 'light' : 'dark'} theme`);
+  for (const radio of document.querySelectorAll('[name="theme"]')) radio.checked = radio.value === preferences.theme;
+  if (preview) drawPreview();
+}
+function selectTab(tab) {
+  cancelHolds();
+  activeTab = ['library', 'converter', 'recorder', 'security', 'appearance'].includes(tab) ? tab : 'library';
+  for (const section of document.querySelectorAll('.tab')) section.hidden = section.id !== activeTab;
+  for (const button of document.querySelectorAll('[data-tab]')) button.setAttribute('aria-pressed', String(button.dataset.tab === activeTab));
+  $('preview').hidden = !preview || !['library', 'converter', 'recorder'].includes(activeTab);
+}
+function applyRoute(focus = false) {
+  cancelHolds();
+  const settings = location.hash.startsWith('#settings');
+  $('remote-page').hidden = settings;
+  $('settings-page').hidden = !settings;
+  if (settings) selectTab(location.hash.split('/')[1] || 'library');
+  $('open-settings').setAttribute('aria-pressed', String(settings));
+  if (focus) {
+    (settings ? $('settings-title') : $('unlock-remote')).focus({preventScroll: true});
+    window.scrollTo({top: 0, behavior: 'instant'});
+  }
+}
+function showSettings(tab = 'library') {
+  location.hash = `settings/${tab}`;
+  applyRoute(true);
+}
+function showUnlock() {
+  cancelHolds();
+  if (busy) { message('Wait for the current operation.'); return; }
+  if ($('unlock-dialog').open) return;
+  $('pin').value = ''; $('unlock-error').textContent = ''; $('message').hidden = true;
+  $('unlock-dialog').showModal();
+  $('pin').focus();
+}
+function toggleLock() {
+  if (session.active()) { session.lock(); message('Remote locked.'); }
+  else showUnlock();
 }
 async function api(path, method = 'GET', data, signal) {
   const response = await fetch(path, {method, signal, cache: 'no-store', headers: {
@@ -57,27 +116,41 @@ async function armWithPin(pin) {
     if (epoch !== session.epoch || document.hidden) throw new Error('Unlock cancelled');
     mustChange = result.must_change_pin;
     session.arm(key, challenge.salt, epoch); updateArmed();
-    message(mustChange ? 'Default PIN verified. Change it in Security before recording or sending.' : 'Armed. Hold a send button for 0.8 seconds.');
+    $('unlock-dialog').close();
+    $('message').hidden = true;
+    if (mustChange) {
+      showSettings('security');
+      message('Default PIN verified. Choose a new PIN before sending or recording.');
+    }
   } finally { pin = ''; if (operation === controller) operation = null; }
 }
-function handler(action) { return event => { event?.preventDefault(); Promise.resolve().then(action).catch(error => message(error.name === 'AbortError' ? 'Locked; pending operation cancelled.' : error.message)); }; }
+function handler(action) { return event => { event?.preventDefault(); Promise.resolve().then(action).catch(error => message(error.name === 'AbortError' ? 'Locked; pending operation cancelled.' : error.message, 'error')); }; }
 $('unlock-form').addEventListener('submit', event => {
   event.preventDefault();
   if (busy) { message('Wait for the current operation'); return; }
   let pin = $('pin').value; $('pin').value = '';
-  if (!/^[0-9]{6,12}$/.test(pin)) { message('PIN must be 6–12 digits'); return; }
+  if (!validPin(pin)) { message('PIN must be 4–12 digits'); return; }
   const pending = withBusy(() => armWithPin(pin)); pin = '';
-  pending.catch(error => { session.lock(); message(error.message); });
+  pending.catch(error => { session.lock(); message(error.name === 'AbortError' ? 'Unlock cancelled.' : error.message, 'error'); });
 });
-$('lock').addEventListener('click', () => { session.lock(); message('Locked'); });
+$('unlock-remote').addEventListener('click', toggleLock);
+$('settings-unlock').addEventListener('click', toggleLock);
+$('close-unlock').addEventListener('click', () => { session.lock(); $('unlock-dialog').close(); });
+$('unlock-dialog').addEventListener('cancel', () => session.lock());
+$('unlock-dialog').addEventListener('close', () => { $('pin').value = ''; $('unlock-error').textContent = ''; });
+$('open-settings').addEventListener('click', () => showSettings());
+$('back-remote').addEventListener('click', () => { location.hash = 'remote'; applyRoute(true); });
+window.addEventListener('hashchange', () => applyRoute());
 window.addEventListener('blur', () => session.lock());
 document.addEventListener('visibilitychange', () => { if (document.hidden) session.lock(); });
 window.addEventListener('pagehide', () => session.lock());
 setInterval(updateArmed, 100);
 
 function bindHold(button, getWaveform) {
-  const gate = new HoldGate(() => session.active() && !mustChange && !busy && !document.hidden, () => {
-    const signal = getWaveform();
+  let selected = null;
+  const gate = new HoldGate(() => session.active() && !mustChange && !busy && !document.hidden &&
+    !button.disabled && button.getClientRects().length > 0 && selected !== null, () => {
+    const signal = selected;
     if (!signal) return;
     navigator.vibrate?.(40);
     withBusy(async () => {
@@ -85,17 +158,27 @@ function bindHold(button, getWaveform) {
         const result = await signed('transmit', {frequency_hz: signal.frequency_hz, pulses: [...signal.pulses], repeats: signal.repeats});
         message(result.simulated ? 'SIMULATED send complete — no RF emitted.' : 'Transmission completed. Locked.');
       } finally { session.lock(); }
-    }).catch(error => message(`Send failed or outcome unknown: ${error.message}. Not retried.`));
+    }).catch(error => message(`Send failed or outcome unknown: ${error.message}. Not retried.`, 'error'));
   });
   let animation = null;
-  function cancel() { gate.cancel(); button.style.setProperty('--held', '0%'); button.classList.remove('holding'); if (animation !== null) cancelAnimationFrame(animation); animation = null; }
+  function cancel() { gate.cancel(); selected = null; button.style.setProperty('--held', '0%'); button.classList.remove('holding'); if (animation !== null) cancelAnimationFrame(animation); animation = null; }
   const item = {cancel}; holds.add(item);
   function frame() {
     button.style.setProperty('--held', `${gate.progress() * 100}%`);
     if (gate.tick() || !session.active() || busy || gate.started === null) { cancel(); return; }
     animation = requestAnimationFrame(frame);
   }
-  function begin() { cancel(); gate.begin(); if (gate.started === null) { message('Unlock with a non-default PIN first'); return; } button.classList.add('holding'); animation = requestAnimationFrame(frame); }
+  function begin() {
+    cancel();
+    if (!session.active()) { showUnlock(); return; }
+    if (mustChange) { showSettings('security'); message('Change the default PIN first.'); return; }
+    const signal = getWaveform();
+    if (!signal) { message('Assign a signal in Settings first.'); return; }
+    selected = {...signal, pulses: [...signal.pulses]}; // Freeze the intended waveform at hold start.
+    gate.begin();
+    if (gate.started === null) { cancel(); return; }
+    button.classList.add('holding'); animation = requestAnimationFrame(frame);
+  }
   button.addEventListener('pointerdown', event => { if (!event.isPrimary || event.button !== 0) return; event.preventDefault(); button.setPointerCapture(event.pointerId); begin(); });
   for (const type of ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture', 'blur']) button.addEventListener(type, cancel);
   button.addEventListener('contextmenu', event => { event.preventDefault(); cancel(); });
@@ -104,24 +187,52 @@ function bindHold(button, getWaveform) {
   button.addEventListener('click', event => event.preventDefault()); // Click never sends.
   return item;
 }
-let libraryHolds = [];
+function renderRemote() {
+  cancelHolds();
+  const slots = resolveSlots(records, preferences.slots);
+  for (let i = 0; i < 2; ++i) {
+    const signal = slots[i], button = $(`remote-${i + 1}`);
+    button.disabled = !signal;
+    button.setAttribute('aria-label', signal ? `${signal.name}. Hold for 0.8 seconds to send.` : `Button ${i + 1}: not assigned. Configure in Settings.`);
+    $(`remote-name-${i + 1}`).textContent = signal?.name || 'Not assigned';
+    $(`remote-note-${i + 1}`).textContent = signal ? 'HOLD TO SEND' : 'SET UP IN SETTINGS';
+    const select = $(`slot-${i + 1}`);
+    select.replaceChildren(new Option('Not assigned', ''));
+    for (const record of records) select.add(new Option(record.name, record.id));
+    select.value = signal?.id || '';
+  }
+  const frequencies = [...new Set(slots.filter(Boolean).map(signal => signal.frequency_hz))];
+  $('remote-frequency').textContent = frequencies.length === 1 ? `${(frequencies[0] / 1e6).toFixed(2)} MHz` : (frequencies.length ? 'MULTI / OOK' : 'NO SIGNALS');
+}
 async function refreshLibrary() {
-  const records = await api('/api/signals');
-  for (const item of libraryHolds) { item.cancel(); holds.delete(item); } libraryHolds = [];
+  records = await api('/api/signals');
+  if (preferences.slots === null && records.length) {
+    // Pick initial defaults once; deleting a signal must never silently remap a familiar button.
+    preferences.slots = [records[0]?.id || '', records[1]?.id || ''];
+    savePreferences(storage, preferences);
+  }
+  renderRemote();
   $('signals').replaceChildren();
+  if (!records.length) {
+    const empty = document.createElement('div'); empty.className = 'empty-library';
+    const heading = document.createElement('h3'); heading.textContent = 'Your library is empty'; empty.append(heading);
+    const copy = document.createElement('p'); copy.textContent = 'Import a .sub file or record your first signal.'; empty.append(copy);
+    const importButton = document.createElement('button'); importButton.textContent = 'Import a signal'; importButton.addEventListener('click', () => showSettings('converter')); empty.append(importButton);
+    $('signals').append(empty);
+  }
   for (const signal of records) {
     const card = document.createElement('article'); card.className = 'card';
     const title = document.createElement('h3'); title.textContent = signal.name; card.append(title);
-    const info = document.createElement('p'); info.textContent = `${signal.category || 'Uncategorized'} · ${(signal.frequency_hz / 1e6).toFixed(3)} MHz · ${signal.pulses.length} pulses × ${signal.repeats}`; card.append(info);
-    const send = document.createElement('button'); send.type = 'button'; send.className = 'hold'; send.textContent = 'Hold 0.8s to send'; libraryHolds.push(bindHold(send, () => signal)); card.append(send);
-    const view = document.createElement('button'); view.textContent = 'Preview'; view.addEventListener('click', () => showPreview(signal)); card.append(view);
-    const exportLink = document.createElement('a'); exportLink.textContent = 'Export .sub'; exportLink.href = `/api/signals/${encodeURIComponent(signal.id)}/export`; exportLink.download = 'signal.sub'; card.append(exportLink);
-    const edit = document.createElement('button'); edit.textContent = 'Edit metadata'; edit.addEventListener('click', handler(async () => {
+    const info = document.createElement('p'); info.className = 'signal-meta'; info.textContent = `${signal.category || 'Uncategorized'} · ${(signal.frequency_hz / 1e6).toFixed(3)} MHz · ${signal.pulses.length} pulses × ${signal.repeats}`; card.append(info);
+    const actions = document.createElement('div'); actions.className = 'signal-actions'; card.append(actions);
+    const view = document.createElement('button'); view.textContent = 'Preview'; view.addEventListener('click', () => showPreview(signal)); actions.append(view);
+    const exportLink = document.createElement('a'); exportLink.textContent = 'Export .sub'; exportLink.href = `/api/signals/${encodeURIComponent(signal.id)}/export`; exportLink.download = 'signal.sub'; actions.append(exportLink);
+    const edit = document.createElement('button'); edit.textContent = 'Rename'; edit.addEventListener('click', handler(async () => {
       const name = window.prompt('Signal name', signal.name); if (name === null) return;
       const category = window.prompt('Category', signal.category); if (category === null) return;
       const {id, ...data} = signal; await api(`/api/signals/${encodeURIComponent(id)}`, 'PUT', {...data, name, category}); await refreshLibrary();
-    })); card.append(edit);
-    const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.addEventListener('click', handler(async () => { if (window.confirm(`Delete ${signal.name}?`)) { await api(`/api/signals/${encodeURIComponent(signal.id)}`, 'DELETE'); await refreshLibrary(); } })); card.append(remove);
+    })); actions.append(edit);
+    const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.className = 'delete-button'; remove.addEventListener('click', handler(async () => { if (window.confirm(`Delete ${signal.name}?`)) { await api(`/api/signals/${encodeURIComponent(signal.id)}`, 'DELETE'); await refreshLibrary(); } })); actions.append(remove);
     $('signals').append(card);
   }
 }
@@ -130,12 +241,25 @@ function showPreview(signal) {
   preview = {frequency_hz: signal.frequency_hz, pulses: [...signal.pulses], repeats: signal.repeats, source_protocol: signal.source_protocol || 'RAW', warnings: signal.warnings || []};
   $('preview').hidden = false; $('signal-name').value = signal.name || 'Recorded signal'; $('signal-category').value = signal.category || '';
   $('preview-info').textContent = `${preview.source_protocol}: ${preview.pulses.length} pulses × ${preview.repeats}, ${preview.frequency_hz} Hz. ${preview.warnings.join('. ')}`;
+  drawPreview();
+}
+function drawPreview() {
+  if (!preview) return;
   const canvas = $('waveform'), ctx = canvas.getContext('2d'), duration = preview.pulses.reduce((sum, p) => sum + Math.abs(p), 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.strokeStyle = '#55d8b0'; ctx.lineWidth = 2; ctx.beginPath(); let x = 0;
+  ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); ctx.lineWidth = 2; ctx.beginPath(); let x = 0;
   ctx.moveTo(0, 120);
   for (const pulse of preview.pulses) { const y = pulse > 0 ? 30 : 120; ctx.lineTo(x, y); x += Math.abs(pulse) / duration * canvas.width; ctx.lineTo(x, y); } ctx.stroke();
 }
 bindHold($('test-send'), () => preview);
+for (let i = 0; i < 2; ++i) {
+  bindHold($(`remote-${i + 1}`), () => resolveSlots(records, preferences.slots)[i]);
+  $(`slot-${i + 1}`).addEventListener('change', () => {
+    preferences.slots = [$('slot-1').value, $('slot-2').value];
+    if (!savePreferences(storage, preferences)) message('Assignment changed for this visit; browser storage is unavailable.');
+    renderRemote();
+  });
+}
+$('close-preview').addEventListener('click', () => { cancelHolds(); preview = null; $('preview').hidden = true; });
 $('refresh').addEventListener('click', handler(refreshLibrary));
 $('convert').addEventListener('click', handler(async () => showPreview(await api('/api/flipper/convert', 'POST', {text: $('sub-text').value, name: 'Imported signal'}))));
 $('sub-file').addEventListener('change', handler(async () => { const file = $('sub-file').files[0]; if (!file) return; if (file.size > 262144) throw new Error('Maximum file size is 256 KiB'); $('sub-text').value = await file.text(); }));
@@ -151,13 +275,13 @@ $('record').addEventListener('click', handler(() => withBusy(async () => {
   await signed('record/start', {frequency_hz: Number($('frequency').value), window_ms: 10000}); message('Capture requested. Check capture status in up to 10 seconds.');
 })));
 $('poll').addEventListener('click', handler(async () => { const result = await api('/api/device/record/status'); if (result.state === 2) showPreview(result); else message(`Capture state: ${['idle', 'recording', 'complete', 'timeout', 'overflow'][result.state] || 'unknown'}`); }));
-$('status').addEventListener('click', handler(async () => { $('diagnostics').textContent = JSON.stringify(await api('/api/device/status'), null, 2); }));
+$('status').addEventListener('click', handler(async () => { $('diagnostics').textContent = JSON.stringify(await api('/api/device/status'), null, 2); $('diagnostics').hidden = false; }));
 $('change-form').addEventListener('submit', handler(() => withBusy(async () => {
   let pin = $('new-pin').value;
   let confirm = $('confirm-pin').value;
   $('new-pin').value = ''; $('confirm-pin').value = '';
   try {
-    if (!/^[0-9]{6,12}$/.test(pin) || pin !== confirm || pin === '123456') throw new Error('Use matching 6–12 digit PINs other than 123456');
+    if (!validPin(pin) || pin !== confirm || pin === DEFAULT_PIN) throw new Error('Use matching 4–12 digit PINs other than 0000');
     confirm = '';
     const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
     const raw = await deriveKey(pin, salt); pin = '';
@@ -165,8 +289,18 @@ $('change-form').addEventListener('submit', handler(() => withBusy(async () => {
     await signed('auth/change-pin', {salt, new_pin_key}); mustChange = false; message('PIN changed. Unlock again.');
   } finally { pin = ''; confirm = ''; session.lock(); }
 })));
-for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => {
-  for (const section of document.querySelectorAll('.tab')) section.hidden = section.id !== button.dataset.tab;
+for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => showSettings(button.dataset.tab));
+$('theme-toggle').addEventListener('click', () => {
+  preferences.theme = preferences.theme === 'dark' ? 'light' : 'dark';
+  savePreferences(storage, preferences); applyTheme();
 });
-api('/api/config').then(config => { $('mode').textContent = config.simulated ? 'SIMULATED DEVICE — NO RF / NO HARDWARE' : 'REAL DEVICE MODE — requires configured ESP8266'; }).catch(error => message(error.message));
-refreshLibrary().catch(error => message(error.message));
+for (const radio of document.querySelectorAll('[name="theme"]')) radio.addEventListener('change', () => {
+  preferences.theme = radio.value; savePreferences(storage, preferences); applyTheme();
+});
+applyTheme(); applyRoute(); updateArmed();
+api('/api/config').then(config => {
+  $('mode').textContent = config.simulated ? 'SIMULATED' : 'LIVE DEVICE';
+  $('mode').title = config.simulated ? 'SIMULATED DEVICE — NO RF / NO HARDWARE' : 'Real device mode — requires configured ESP8266';
+  $('settings-mode').textContent = config.simulated ? 'SIMULATED DEVICE / NO RF' : 'REAL DEVICE / AUTHENTICATION REQUIRED';
+}).catch(error => { $('mode').textContent = 'OFFLINE'; $('settings-mode').textContent = 'DEVICE OFFLINE'; message(error.message, 'error'); });
+refreshLibrary().catch(error => message(error.message, 'error'));

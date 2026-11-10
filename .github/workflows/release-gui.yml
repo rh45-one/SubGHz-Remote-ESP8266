@@ -1,0 +1,174 @@
+name: Publish GUI Image
+on:
+  workflow_run:
+    workflows: ["Offline checks"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semantic version increment when allocating a new release"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      force:
+        description: "Publish even if no GUI or deployment files changed since the last release"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-gui-image
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ github.sha }}
+    permissions:
+      contents: read
+
+  publish:
+    needs: [checks]
+    if: >-
+      always() && (
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        ) ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          needs.checks.result == 'success'
+        )
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout target commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Plan release version
+        id: plan
+        env:
+          TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || 'patch' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin main:refs/remotes/origin/main
+          IMAGE_REPO=$(printf '%s' "ghcr.io/${GITHUB_REPOSITORY_OWNER}/subghz-remote-esp8266-gui" | tr '[:upper:]' '[:lower:]')
+          echo "image_repo=${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          ARGS=(plan --target-sha "$TARGET_SHA" --main-ref refs/remotes/origin/main --bump "$BUMP" --github-output "$GITHUB_OUTPUT")
+          if [ "$FORCE" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          python3 scripts/release_version.py "${ARGS[@]}"
+
+      - name: Validate Compose configuration
+        if: steps.plan.outputs.should_release == 'true'
+        run: |
+          docker compose -f gui/docker-compose.yml config --quiet
+          docker compose -f gui/docker-compose.yml -f gui/docker-compose.dev.yml config --quiet
+
+      - name: Set up QEMU
+        if: steps.plan.outputs.should_release == 'true'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Docker Buildx
+        if: steps.plan.outputs.should_release == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        if: steps.plan.outputs.should_release == 'true'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push versioned image
+        id: build_image
+        if: steps.plan.outputs.should_release == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./gui
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.plan.outputs.image_repo }}:${{ steps.plan.outputs.tag }}
+            ${{ steps.plan.outputs.image_repo }}:${{ steps.plan.outputs.version }}
+            ${{ steps.plan.outputs.image_repo }}:${{ steps.plan.outputs.sha_tag }}
+          build-args: |
+            APP_VERSION=${{ steps.plan.outputs.version }}
+            VCS_REF=${{ steps.plan.outputs.target_sha }}
+            BUILD_DATE=${{ steps.plan.outputs.build_date }}
+          labels: |
+            org.opencontainers.image.title=SubGHz-Remote-ESP8266 GUI
+            org.opencontainers.image.description=Homelab FastAPI and mobile Web UI for SubGHz-Remote-ESP8266
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.plan.outputs.version }}
+            org.opencontainers.image.revision=${{ steps.plan.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.plan.outputs.build_date }}
+
+      - name: Create GitHub Release and deployment assets
+        if: steps.plan.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
+          IMAGE_REPO: ${{ steps.plan.outputs.image_repo }}
+          DIGEST: ${{ steps.build_image.outputs.digest }}
+          TARGET_SHA: ${{ steps.plan.outputs.target_sha }}
+          PREVIOUS_TAG: ${{ steps.plan.outputs.previous_tag }}
+          PROMOTE_LATEST: ${{ steps.plan.outputs.promote_latest }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$(mktemp)"
+          python3 scripts/release_version.py notes \
+            --tag "$TAG" \
+            --version "$VERSION" \
+            --image-repo "$IMAGE_REPO" \
+            --digest "$DIGEST" \
+            --target-sha "$TARGET_SHA" \
+            --previous-tag "$PREVIOUS_TAG" \
+            --promote-latest "$PROMOTE_LATEST" \
+            --output "$NOTES_FILE"
+          if ! git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            git tag "$TAG" "$TARGET_SHA"
+            git push origin "refs/tags/${TAG}"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Web UI ${TAG}" --notes-file "$NOTES_FILE"
+            gh release upload "$TAG" gui/docker-compose.yml gui/docker-compose.dev.yml gui/.env.example --clobber
+          else
+            gh release create "$TAG" gui/docker-compose.yml gui/docker-compose.dev.yml gui/.env.example \
+              --target "$TARGET_SHA" \
+              --title "Web UI ${TAG}" \
+              --notes-file "$NOTES_FILE"
+          fi
+
+      - name: Promote digest to latest tag
+        if: steps.plan.outputs.should_release == 'true' && steps.plan.outputs.promote_latest == 'true'
+        env:
+          IMAGE_REPO: ${{ steps.plan.outputs.image_repo }}
+          DIGEST: ${{ steps.build_image.outputs.digest }}
+        run: |
+          docker buildx imagetools create -t "${IMAGE_REPO}:latest" "${IMAGE_REPO}@${DIGEST}"

@@ -1,37 +1,121 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SubGHz Remote</title><link rel="stylesheet" href="/static/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080808">
+  <title>SubGHz / Remote</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
   <script type="module" src="/static/app.mjs"></script>
 </head>
 <body>
-<header><h1>SubGHz Remote</h1><strong id="mode">Checking device mode…</strong><p id="armed" role="status">Locked</p><progress id="countdown" max="60" value="0"></progress></header>
-<main>
-  <section aria-labelledby="unlock-title"><h2 id="unlock-title">Arm controls</h2>
-    <form id="unlock-form"><label>PIN <input id="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="off" required></label><button>Unlock for 60 seconds</button></form>
-    <button id="lock" type="button">Lock now</button><p>Hold a send button for 0.8 seconds. Sending, hiding this page, or switching apps locks it immediately. Use only authorized fixed-code devices.</p>
-  </section>
-  <nav aria-label="Sections"><button type="button" data-tab="remote">Remote</button><button type="button" data-tab="converter">Flipper converter</button><button type="button" data-tab="recorder">Recorder</button><button type="button" data-tab="security">Security & diagnostics</button></nav>
-  <p id="message" role="status" aria-live="polite">Ready. No action transmits automatically.</p>
-  <section id="remote" class="tab"><h2>Signal library</h2><button id="refresh" type="button">Refresh library</button><div id="signals"></div></section>
-  <section id="converter" class="tab" hidden><h2>Flipper .sub converter</h2>
-    <label>File <input id="sub-file" type="file" accept=".sub,text/plain"></label>
-    <label>Or paste .sub text <textarea id="sub-text" rows="8" maxlength="262144"></textarea></label>
-    <button id="convert" type="button">Convert & preview (no transmission)</button>
-  </section>
-  <section id="recorder" class="tab" hidden><h2>Live recorder</h2>
-    <label>Frequency (Hz) <input id="frequency" type="number" value="433920000" step="1"></label>
-    <button id="record" type="button">Start authenticated 10-second capture</button><button id="poll" type="button">Check capture</button><p>No recording starts until requested. The device returns to idle automatically.</p>
-  </section>
-  <section id="preview" hidden><h2>Waveform preview</h2><p id="preview-info"></p><canvas id="waveform" width="900" height="150" aria-label="Pulse waveform preview"></canvas>
-    <label>Name <input id="signal-name" value="New signal" maxlength="80"></label><label>Category <input id="signal-category" maxlength="80"></label>
-    <button id="save" type="button">Save to library</button><button id="export-preview" type="button">Export .sub</button><button id="test-send" class="hold" type="button">Hold 0.8s to test send</button>
-  </section>
-  <section id="security" class="tab" hidden><h2>Security & diagnostics</h2><button id="status" type="button">Refresh device status</button><pre id="diagnostics"></pre>
-    <form id="change-form"><label>New PIN (6–12 digits) <input id="new-pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="off" required></label>
-      <label>Confirm new PIN <input id="confirm-pin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="off" required></label><button>Change PIN & lock</button></form>
-    <p>Unlock with the current PIN first. Default PIN 123456 must be changed before RF operations. Credentials are never saved in this browser or sent to the GUI backend.</p>
-  </section>
-</main><footer>Software preview: hardware acceptance remains pending. Network HMAC is not encryption; keep the device on a trusted LAN and serve this UI over Tailscale HTTPS.</footer>
-</body></html>
+  <svg class="sprites" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-radio" viewBox="0 0 24 24"><path d="M4 17h3V7h4v14h4V3h4v14h3M1 17h3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9 3h6v3h3v3h3v6h-3v3h-3v3H9v-3H6v-3H3V9h3V6h3z"/><rect x="9" y="9" width="6" height="6"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4M4 4l3 3m10 10 3 3M4 20l3-3M17 7l3-3"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19 16h-7v-3H9V5h3V2H9v3H6v3H3v9h3v3h3v2h9v-3h3v-6h-2z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M7 10V4h10v6M4 10h16v12H4zM12 14v4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M3 12h17M13 5l7 7-7 7"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M21 12H4m7-7-7 7 7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="#remote" aria-label="SubGHz remote home"><svg class="icon brand-icon" aria-hidden="true"><use href="#i-radio"/></svg><span>SUBGHZ<span class="brand-detail">REMOTE CONTROL</span></span></a>
+    <div class="topbar-actions">
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch to light theme" title="Switch theme"><svg class="icon sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="icon moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
+      <button id="open-settings" class="icon-button" type="button" aria-label="Open settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
+    </div>
+  </header>
+
+  <main>
+    <section id="remote-page" class="remote-page" aria-label="Two-button remote">
+      <h1 class="sr-only">Remote control</h1>
+      <div class="remote-body">
+        <div class="device-topline"><span>SUBGHZ / 02</span><span class="status-dot" aria-hidden="true"></span></div>
+        <div class="remote-display">
+          <div class="display-topline"><span id="remote-frequency">433.92 MHz</span><span id="mode" class="mode-badge">CONNECTING</span></div>
+          <div class="display-state"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span id="armed" role="status">LOCKED</span></div>
+          <progress id="countdown" max="60" value="0" aria-label="Armed session time remaining"></progress>
+          <div class="display-bottomline"><span id="remote-hint">Unlock, then hold to send.</span><span aria-hidden="true">● ● ○</span></div>
+        </div>
+        <div class="remote-buttons">
+          <button id="remote-1" class="remote-key hold" type="button" disabled><span class="key-number">01</span><span class="key-copy"><strong id="remote-name-1">Not assigned</strong><span id="remote-note-1">SET UP IN SETTINGS</span></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          <button id="remote-2" class="remote-key hold" type="button" disabled><span class="key-number">02</span><span class="key-copy"><strong id="remote-name-2">Not assigned</strong><span id="remote-note-2">SET UP IN SETTINGS</span></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        </div>
+        <button id="unlock-remote" class="unlock-remote" type="button"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span id="unlock-remote-label">Unlock remote</span></button>
+        <div class="remote-bottomline"><span>HOLD 0.8s TO SEND</span><span>OOK / ASK</span></div>
+      </div>
+      <p class="remote-caption">TWO BUTTONS. NOTHING ACCIDENTAL.</p>
+    </section>
+
+    <section id="settings-page" class="settings-page" aria-labelledby="settings-title" hidden>
+      <div class="settings-heading"><div><button id="back-remote" class="back-button" type="button"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Remote</button><h1 id="settings-title" tabindex="-1">Settings<span class="heading-dot">_</span></h1><p id="settings-mode" class="eyebrow">CHECKING DEVICE</p></div><button id="settings-unlock" class="quiet-button" type="button">Unlock</button></div>
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button type="button" data-tab="library" aria-pressed="true"><span>01</span> Signals</button>
+          <button type="button" data-tab="converter" aria-pressed="false"><span>02</span> Converter</button>
+          <button type="button" data-tab="recorder" aria-pressed="false"><span>03</span> Recorder</button>
+          <button type="button" data-tab="security" aria-pressed="false"><span>04</span> Security</button>
+          <button type="button" data-tab="appearance" aria-pressed="false"><span>05</span> Appearance</button>
+        </nav>
+        <div class="settings-content">
+          <section id="library" class="tab" aria-labelledby="library-title">
+            <div class="section-heading"><div><p class="eyebrow">YOUR REMOTE</p><h2 id="library-title">Signals</h2></div><button id="refresh" class="quiet-button" type="button">Refresh</button></div>
+            <fieldset class="assignments"><legend>Button assignments</legend><label><span class="field-number">01</span><span>First button</span><select id="slot-1" aria-label="Signal for first remote button"><option value="">Not assigned</option></select></label><label><span class="field-number">02</span><span>Second button</span><select id="slot-2" aria-label="Signal for second remote button"><option value="">Not assigned</option></select></label><p class="muted">Assignments are saved on this browser. Signals stay in your library.</p></fieldset>
+            <div id="signals" class="signal-list"></div>
+          </section>
+
+          <section id="converter" class="tab" aria-labelledby="converter-title" hidden>
+            <div class="section-heading"><div><p class="eyebrow">FLIPPER ZERO / .SUB</p><h2 id="converter-title">Converter</h2></div></div>
+            <p class="muted">Import a supported OOK signal. Converting never transmits.</p>
+            <label class="file-field">Choose a .sub file<input id="sub-file" type="file" accept=".sub,text/plain"></label>
+            <label>Or paste file contents<textarea id="sub-text" rows="7" maxlength="262144" placeholder="Filetype: Flipper SubGhz RAW File&#10;Version: 1&#10;Frequency: 433920000&#10;…" spellcheck="false"></textarea></label>
+            <button id="convert" class="primary-button" type="button">Convert & preview<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          </section>
+
+          <section id="recorder" class="tab" aria-labelledby="recorder-title" hidden>
+            <div class="section-heading"><div><p class="eyebrow">LIVE CAPTURE</p><h2 id="recorder-title">Recorder</h2></div></div>
+            <p class="muted">Listen for up to 10 seconds, then inspect and save the waveform. Unlock first.</p>
+            <label class="short-field">Frequency / Hz<input id="frequency" type="number" value="433920000" step="1"></label>
+            <div class="button-row"><button id="record" class="primary-button" type="button">Start capture</button><button id="poll" type="button">Check capture</button></div>
+            <p class="footnote">The receiver returns to idle automatically. Nothing records at startup.</p>
+          </section>
+
+          <section id="security" class="tab" aria-labelledby="security-title" hidden>
+            <div class="section-heading"><div><p class="eyebrow">ACCESS & DEVICE</p><h2 id="security-title">Security</h2></div><button id="status" class="quiet-button" type="button">Device status</button></div>
+            <p class="muted">Unlock with your current PIN before changing it. The default PIN <code>0000</code> must be changed before sending or recording.</p>
+            <form id="change-form"><div class="field-pair"><label>New PIN<input id="new-pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="4–12 digits"></label><label>Confirm PIN<input id="confirm-pin" type="password" inputmode="numeric" minlength="4" maxlength="12" autocomplete="off" required placeholder="Repeat new PIN"></label></div><button class="primary-button">Change PIN & lock</button></form>
+            <pre id="diagnostics" hidden aria-label="Device diagnostics"></pre>
+            <details class="security-notes"><summary>How protection works</summary><p>Single-use signed requests. A 60-second armed window. An uninterrupted 0.8-second hold to transmit. Sending, switching apps, hiding the page, or leaving the window locks it.</p><p>No plaintext PIN is stored or sent to the backend. Use Tailscale HTTPS and a trusted LAN. HMAC is not encryption. Hardware acceptance is still pending.</p></details>
+          </section>
+
+          <section id="appearance" class="tab" aria-labelledby="appearance-title" hidden>
+            <div class="section-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2 id="appearance-title">Appearance</h2></div></div>
+            <fieldset class="theme-options"><legend>Color mode</legend><label class="theme-option"><input type="radio" name="theme" value="dark" checked><span class="theme-swatch swatch-dark" aria-hidden="true">Aa</span><span><strong>Night shift</strong><small>Black & orange</small></span></label><label class="theme-option"><input type="radio" name="theme" value="light"><span class="theme-swatch swatch-light" aria-hidden="true">Aa</span><span><strong>Day shift</strong><small>White & orange</small></span></label></fieldset>
+            <p class="muted">Only the theme and button assignments are saved in this browser. Never your PIN.</p>
+          </section>
+
+          <section id="preview" class="preview-panel" aria-labelledby="preview-title" hidden>
+            <div class="section-heading"><div><p class="eyebrow">SIGNAL INSPECTOR</p><h2 id="preview-title">Waveform</h2></div><button id="close-preview" class="icon-button" type="button" aria-label="Close waveform preview"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+            <p id="preview-info" class="footnote"></p><canvas id="waveform" width="900" height="150" aria-label="Pulse waveform preview"></canvas>
+            <div class="field-pair"><label>Name<input id="signal-name" value="New signal" maxlength="80"></label><label>Category<input id="signal-category" maxlength="80" placeholder="Optional"></label></div>
+            <div class="button-row"><button id="save" class="primary-button" type="button">Save signal</button><button id="export-preview" type="button">Export .sub</button><button id="test-send" class="hold test-send" type="button">Hold 0.8s to test send</button></div>
+          </section>
+        </div>
+      </div>
+      <footer class="settings-footer"><span>SUBGHZ / ESP8266 + CC1101</span><span>AUTHORIZED DEVICES ONLY</span></footer>
+    </section>
+  </main>
+
+  <div id="message" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="unlock-dialog" aria-labelledby="unlock-title" aria-describedby="unlock-description">
+    <div class="dialog-heading"><span class="eyebrow">ACCESS CONTROL</span><button id="close-unlock" class="icon-button" type="button" aria-label="Cancel unlock"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <svg class="icon dialog-lock" aria-hidden="true"><use href="#i-lock"/></svg><h2 id="unlock-title">Unlock remote</h2><p id="unlock-description" class="muted">Enter your PIN. Armed for 60 seconds.</p>
+    <form id="unlock-form"><label class="sr-only" for="pin">PIN</label><input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="••••" autofocus><p id="unlock-error" class="dialog-error" role="alert"></p><button class="primary-button">Unlock<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></form>
+    <p class="footnote">Single taps never transmit.</p>
+  </dialog>
+</body>
+</html>

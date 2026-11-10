@@ -1,4 +1,5 @@
 tests
+browser_tests
 data
 __pycache__
 .pytest_cache

@@ -4,6 +4,7 @@ firmware/.pio/
 *.ilk
 *.pdb
 firmware/include/secrets.h
+firmware/include/network_config.h
 gui/data/*.json
 !gui/data/signals.example.json
 __pycache__/

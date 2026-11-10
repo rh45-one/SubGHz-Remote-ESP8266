@@ -1,4 +1,9 @@
 // Pure timing/state helpers, also exercised under Node without a browser.
+export const DEFAULT_PIN = '0000';
+export function validPin(pin) {
+  return typeof pin === 'string' && /^[0-9]{4,12}$/.test(pin);
+}
+
 export class ArmedSession {
   constructor(now = () => performance.now(), onLock = () => {}) {
     this.now = now; this.onLock = onLock; this.epoch = 0; this.key = null; this.salt = null; this.until = 0;

@@ -1,4 +1,4 @@
-# Authenticated API contract (v0.3)
+# Authenticated API contract (v0.3.1)
 
 The device uses a bounded HTTP/1.1 implementation: 1024-byte headers, 8192-byte body, one request per connection, 2.5-second receive deadline. `Host`, a single decimal `Content-Length`, and `Content-Type: application/json` are required for POST. Chunking, Expect/100-continue, duplicate lengths, and folded headers are rejected **before** body allocation. The backend relay never redirects or retries RF requests and bounds both response size and total timeout.
 
@@ -7,6 +7,8 @@ The device uses a bounded HTTP/1.1 implementation: 1024-byte headers, 8192-byte 
 `GET /api/auth/challenge` returns lowercase hex `salt` (16 bytes), `nonce` (16 bytes), and `expires_in_ms: 10000`. Only one nonce is outstanding; issuing another replaces it. Serialize protected operations across tabs/clients or expect authentication failures.
 
 Derive `pin_key = SHA256(bytes.fromhex(salt) + PIN.encode('utf-8'))`.
+
+PINs are strings of 4–12 ASCII digits; leading zeroes are significant. The factory default is `0000` and must be changed before RF use. Existing `/auth.json` credentials survive firmware updates. The device receives derived key material, not plaintext PINs, so PIN length/digit restrictions are enforced by the client UI rather than inferred from a SHA256 hash. Status advertises `pin_min_length: 4` and `pin_max_length: 12`.
 
 Protected requests use an envelope (the inner JSON is deliberately a **string**, not an object):
 ```json
