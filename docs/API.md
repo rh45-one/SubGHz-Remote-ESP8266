@@ -260,7 +260,8 @@ Host: localhost:7915
 **Response (`200 OK`):**
 ```json
 {
-  "simulated": false
+  "simulated": false,
+  "version": "0.1.5"
 }
 ```
 

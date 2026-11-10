@@ -100,7 +100,8 @@ def create_app(store_path: Path | None = None, device=None, allowed_hosts=None) 
 
     @app.get("/api/config")
     def config():
-        return {"simulated": isinstance(app.state.device, SimulatedDevice)}
+        version = os.getenv("APP_VERSION", "dev").strip() or "dev"
+        return {"simulated": isinstance(app.state.device, SimulatedDevice), "version": version}
 
     @app.get("/api/signals")
     def signals():
