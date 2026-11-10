@@ -12,7 +12,7 @@ This file is the authoritative technical reference for AI coding agents and deve
 
 ---
 
-## 2. Hardware Pinout & Wiring Reference (`rysunek1.webp`)
+## 2. Hardware Pinout & Wiring Reference
 
 | CC1101 Pin | Signal | Wire Color | NodeMCU Label | ESP8266 GPIO | Hardware Role |
 | :---: | :--- | :--- | :---: | :---: | :--- |
@@ -110,11 +110,10 @@ SubGHz-Remote-ESP8266/
 ├── AGENTS.md                 # This technical reference for agents & developers
 ├── PLAN.md                   # Phased development plan & architecture
 ├── README.md                 # Quickstart & wiring guide
-├── rysunek1.webp             # Physical wiring diagram (CC1101 <-> NodeMCU)
 ├── firmware/                 # PlatformIO ESP8266 firmware project
 │   ├── platformio.ini        # nodemcuv2 config (115200 baud, LittleFS, libs)
 │   ├── include/
-│   │   ├── pin_config.h      # Hardware pin definitions matching rysunek1.webp
+│   │   ├── pin_config.h      # Hardware pin definitions
 │   │   ├── cc1101_diag.h     # Hardware & wiring self-test suite
 │   │   ├── subghz_engine.h   # Stateless capture, replay & Idle High-Z engine
 │   │   ├── auth_manager.h    # Salted SHA-256 + Nonce HMAC & brute-force limiter

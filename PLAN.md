@@ -38,7 +38,7 @@ Because the ESP8266 communicates over LAN HTTP while the mobile browser connects
 ## 3. Phased Roadmap
 
 ### Phase 1: CC1101 Wiring & Hardware Diagnostic Firmware ✅ (Completed)
-- **Objective**: Verify physical wiring (`rysunek1.webp`) between the 8-pin CC1101 V2.0 module and the NodeMCU ESP8266, validate SPI register reads/writes, test `GDO0` (`D4`) and `GDO2` (`RX`) continuity, and confirm 433.92 MHz OOK reception.
+- **Objective**: Verify physical wiring between the 8-pin CC1101 V2.0 module and the NodeMCU ESP8266, validate SPI register reads/writes, test `GDO0` (`D4`) and `GDO2` (`RX`) continuity, and confirm 433.92 MHz OOK reception.
 - **Verified Results on COM4**:
   - `[1]` Power & MISO Ready (`D6` Yellow + `D8` Pink + `3V3`/`GND`): **PASS**
   - `[2]` SPI Chip Identity (`D5` Green SCK + `D7` Orange MOSI): **PASS** (`PARTNUM=0x00, VERSION=0x14`)

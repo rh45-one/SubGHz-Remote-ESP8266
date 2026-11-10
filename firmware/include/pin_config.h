@@ -3,7 +3,6 @@
 
 // ============================================================================
 // CC1101 V2.0 (8-pin) <-> NodeMCU (ESP8266MOD) Wiring Configuration
-// Matches rysunek1.webp
 // ============================================================================
 // Pin 1: GND  (Black)  -> NodeMCU GND
 // Pin 2: VCC  (Red)    -> NodeMCU 3V3 (3.3V ONLY)

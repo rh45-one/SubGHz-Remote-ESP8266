@@ -73,7 +73,7 @@ The browser derives a non-extractable signing key and immediately discards the e
 
 ## Wiring (CC1101 V2.0 8-pin <-> NodeMCU ESP8266)
 
-| CC1101 Pin | Signal | Wire Color (`rysunek1.webp`) | NodeMCU Pin | ESP8266 GPIO |
+| CC1101 Pin | Signal | Wire Color | NodeMCU Pin | ESP8266 GPIO |
 | :---: | :--- | :--- | :---: | :---: |
 | **1** | `GND` | Black | `GND` | — |
 | **2** | `VCC` | Red | `3V3` | — |
