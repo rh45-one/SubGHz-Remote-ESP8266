@@ -89,7 +89,7 @@
           <section id="security" class="tab" aria-labelledby="security-title" hidden>
             <div class="section-heading"><div><p class="eyebrow">ACCESS & DEVICE</p><h2 id="security-title">Security</h2></div><button id="status" class="quiet-button" type="button">Device status</button></div>
             <p class="muted">Unlock with your current PIN before changing it. The default PIN <code>0000</code> must be changed before sending or recording.</p>
-            <form id="change-form"><div class="field-pair"><label>New PIN<input id="new-pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="4–12 digits"></label><label>Confirm PIN<input id="confirm-pin" type="password" inputmode="numeric" minlength="4" maxlength="12" autocomplete="off" required placeholder="Repeat new PIN"></label></div><button class="primary-button">Change PIN & lock</button></form>
+            <form id="change-form"><div class="field-pair"><label>New PIN<input id="new-pin" class="masked-pin" type="tel" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="4–12 digits"></label><label>Confirm PIN<input id="confirm-pin" class="masked-pin" type="tel" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="Repeat new PIN"></label></div><button class="primary-button">Change PIN & lock</button></form>
             <pre id="diagnostics" hidden aria-label="Device diagnostics"></pre>
             <details class="security-notes"><summary>How protection works</summary><p>Single-use signed requests. A 60-second armed window. An uninterrupted 0.8-second hold to transmit. Sending, switching apps, hiding the page, or leaving the window locks it.</p><p>No plaintext PIN is stored or sent to the backend. Use Tailscale HTTPS and a trusted LAN. HMAC is not encryption. Hardware acceptance is still pending.</p></details>
           </section>
@@ -111,7 +111,7 @@
   <dialog id="unlock-dialog" aria-labelledby="unlock-title" aria-describedby="unlock-description">
     <div class="dialog-heading"><span class="eyebrow">ACCESS CONTROL</span><button id="close-unlock" class="icon-button" type="button" aria-label="Cancel unlock"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
     <svg class="icon dialog-lock" aria-hidden="true"><use href="#i-lock"/></svg><h2 id="unlock-title">Unlock remote</h2><p id="unlock-description" class="muted">Enter your PIN. Armed for 60 seconds.</p>
-    <form id="unlock-form"><label class="sr-only" for="pin">PIN</label><input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="••••" autofocus><p id="unlock-error" class="dialog-error" role="alert"></p><button class="primary-button">Unlock<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></form>
+    <form id="unlock-form"><label class="sr-only" for="pin">PIN</label><input id="pin" class="pin-input masked-pin" type="tel" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" required placeholder="••••" autofocus><p id="unlock-error" class="dialog-error" role="alert"></p><button class="primary-button">Unlock<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></form>
     <p class="footnote">Single taps never transmit.</p>
   </dialog>
 </body>

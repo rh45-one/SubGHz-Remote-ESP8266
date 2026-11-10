@@ -140,6 +140,12 @@ async function armWithPin(pin) {
   } finally { pin = ''; if (operation === controller) operation = null; }
 }
 function handler(action) { return event => { event?.preventDefault(); Promise.resolve().then(action).catch(error => message(error.name === 'AbortError' ? 'Locked; pending operation cancelled.' : error.message, 'error')); }; }
+for (const id of ['pin', 'new-pin', 'confirm-pin']) {
+  $(id).addEventListener('input', event => {
+    const cleaned = event.target.value.replace(/\D+/g, '').slice(0, 12);
+    if (event.target.value !== cleaned) event.target.value = cleaned;
+  });
+}
 $('unlock-form').addEventListener('submit', event => {
   event.preventDefault();
   if (busy) { message('Wait for the current operation'); return; }

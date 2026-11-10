@@ -186,6 +186,7 @@ dialog::backdrop { background: #000b; }
 dialog h2 { font-size: 21px; margin-bottom: 8px; }
 dialog .muted { font-size: 10px; margin-bottom: 17px; }
 .pin-input { text-align: center; font-size: 23px; letter-spacing: 7px; height: 53px; padding-left: 17px; margin-bottom: 10px; }
+.masked-pin { -webkit-text-security: disc; text-security: disc; }
 dialog .primary-button { width: 100%; justify-content: space-between; }
 .dialog-error { font-size: 10px; line-height: 1.7; margin-bottom: 12px; }
 .dialog-error:empty { display: none; }
