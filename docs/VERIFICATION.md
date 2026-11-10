@@ -8,7 +8,7 @@
 - Node tests independently check SHA256/HMAC byte compatibility, 60-second expiry, reference clearing, stale-unlock rejection, and the exact 800 ms hold threshold/cancellation.
 - Browser smoke checks against the simulator: default-PIN restriction, PIN change and clearing, unlock, capture/preview, tap refusal, 800 ms hold completing a **simulated** send, post-send relock, blur relock, no local/session storage secrets, and no JavaScript console errors.
 - Runtime Python dependency audit: no known vulnerabilities in the selected versions at verification time.
-- Docker Compose configuration validates. Local Docker build/runtime could not be exercised because the daemon was not running; CI builds the image.
+- Docker Compose configuration validates. Local Docker build/runtime could not be exercised because the daemon was not running; CI builds the image and runs `gui/tests/docker_smoke.py` with networking completely disabled to verify non-root/read-only operation and named-volume persistence across container recreation.
 
 These are not claims that the simulated device executes the ESP8266 HTTP/crypto/filesystem implementation. Firmware BearSSL/LittleFS/Wi-Fi integration is compiled, while the policy/parser/engine are host-tested. Memory pressure, power-loss atomicity, RF timing, and physical GPIO states remain unverified on hardware.
 
@@ -29,7 +29,7 @@ pip-audit -r gui/requirements.txt
 docker compose -f gui/docker-compose.yml config --quiet
 ```
 
-GitHub Actions performs these non-hardware checks plus a Docker image build. It never uploads firmware or connects to an RF device.
+GitHub Actions performs these non-hardware checks plus the Docker image build and network-isolated container smoke test. It never uploads firmware or connects to an RF device. To repeat the container check locally, build `subghz-gui` and run `python gui/tests/docker_smoke.py`; only that script's randomly named test containers and volume are removed.
 
 ## Physical acceptance (requires explicit future authorization)
 

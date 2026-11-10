@@ -21,6 +21,7 @@ jobs:
       - run: node --test gui/tests/safety.test.mjs
       - run: pip-audit -r gui/requirements.txt
       - run: docker build -t subghz-gui ./gui
+      - run: python gui/tests/docker_smoke.py
   firmware:
     runs-on: ubuntu-latest
     steps:
