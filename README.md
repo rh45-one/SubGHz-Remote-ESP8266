@@ -33,7 +33,27 @@ The GUI binds only to loopback (`127.0.0.1:8000:8000`). Do not publish port 8000
 
 Pushes to `main` that pass `Offline checks` and modify GUI or deployment files automatically publish a multi-architecture (`linux/amd64`, `linux/arm64`) OCI image to **`ghcr.io/rh45-one/subghz-remote-esp8266-gui`**, create a matching **`ui-vX.Y.Z` GitHub Release** (with `docker-compose.yml`, `docker-compose.dev.yml`, and `.env.example` attached), and then promote that exact manifest digest to `:latest`.
 
-- **Pull / manual update (preserving the `signals` volume):**
+- **Single-command `docker run` (no `.yml` file or repo checkout needed):**
+  ```sh
+  docker run -d \
+    --name subghz-gui \
+    --pull always \
+    -p 127.0.0.1:8000:8000 \
+    -e DEVICE_MODE=real \
+    -e ESP_BASE_URL=http://192.168.1.195 \
+    -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+    -v subghz-signals:/app/data \
+    --label com.centurylinklabs.watchtower.enable=true \
+    --label com.centurylinklabs.watchtower.scope=subghz-remote \
+    --read-only \
+    --tmpfs /tmp:size=16m,noexec,nosuid \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --restart unless-stopped \
+    ghcr.io/rh45-one/subghz-remote-esp8266-gui:latest
+  ```
+  *(Replace `http://192.168.1.195` with your ESP8266 LAN IP if different, and append your Tailscale Serve hostname to `ALLOWED_HOSTS` when exposing over Tailscale HTTPS.)*
+- **Pull / manual update with Docker Compose (preserving the `signals` volume):**
   ```sh
   docker compose -f gui/docker-compose.yml pull
   docker compose -f gui/docker-compose.yml up -d
