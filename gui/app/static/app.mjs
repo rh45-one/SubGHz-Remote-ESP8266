@@ -205,10 +205,16 @@ function bindHold(button, getWaveform) {
     if (gate.started === null) { cancel(); return; }
     button.classList.add('holding'); animation = requestAnimationFrame(frame);
   }
-  button.addEventListener('pointerdown', event => { if (!event.isPrimary || event.button !== 0) return; event.preventDefault(); button.setPointerCapture(event.pointerId); begin(); });
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) button.addEventListener(type, release);
-  for (const type of ['lostpointercapture', 'blur']) button.addEventListener(type, cancel);
-  button.addEventListener('contextmenu', event => { event.preventDefault(); cancel(); });
+  button.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    begin();
+    try { button.setPointerCapture?.(event.pointerId); } catch {}
+  });
+  for (const type of ['pointerup', 'pointercancel']) button.addEventListener(type, release);
+  button.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') release(); });
+  button.addEventListener('blur', cancel);
+  button.addEventListener('contextmenu', event => event.preventDefault()); // Mobile long-press fires contextmenu at ~500ms; do not cancel hold.
   button.addEventListener('keydown', event => { if (event.code === 'Space' || event.code === 'Enter') { event.preventDefault(); if (!event.repeat) begin(); } });
   button.addEventListener('keyup', release);
   button.addEventListener('click', event => event.preventDefault()); // Click never sends.

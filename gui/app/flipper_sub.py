@@ -531,8 +531,8 @@ def parse_sub(text: str, name: str = "Imported signal") -> Signal:
         # Never cap synthesized timing: unsupported parameters must fail validation.
         if "Repeat" in fields:
             repeats = _number(one("Repeat"), 1, 20)
-        elif protocol == "Hormann HSM":
-            repeats = 10
+        else:
+            repeats = min(10, max(1, 1_500_000 // sum(map(abs, pulses))))
     if not 387_000_000 <= frequency <= 464_000_000:
         warnings.append(
             f"Frequency {frequency / 1e6:.2f} MHz is outside the 433 MHz band; "

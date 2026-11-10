@@ -114,7 +114,7 @@ progress::-moz-progress-bar { background: var(--accent); }
 .key-copy strong { font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .key-copy > :last-child { font-size: 8px; letter-spacing: .8px; color: var(--muted); }
 .remote-key > .icon { width: 16px; height: 16px; }
-.hold { touch-action: none; user-select: none; -webkit-user-select: none; background-image: linear-gradient(90deg, var(--wash) var(--held, 0%), transparent var(--held, 0%)); }
+.hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; background-image: linear-gradient(90deg, var(--wash) var(--held, 0%), transparent var(--held, 0%)); }
 .holding { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .unlock-remote { width: 100%; border: 0; min-height: 40px; color: var(--muted); font-size: 11px; }
 .unlock-remote .icon { width: 13px; height: 14px; }

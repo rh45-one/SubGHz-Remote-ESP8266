@@ -55,10 +55,18 @@ void configure(float mhz) {
     ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG2, HIGH_Z);
     ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, HIGH_Z);
     ELECHOUSE_cc1101.setMHZ(mhz);
+    // SmartRC-CC1101-Driver-Lib's Calibrate() writes a large positive offset to
+    // FSCTRL0 (+55.5 kHz at 433.92 MHz, +115.8 kHz at 868.35 MHz). Zero FSCTRL0
+    // and write the exact 26 MHz synthesizer word to match Flipper Zero's carrier.
+    uint32_t freq = static_cast<uint32_t>((mhz * 65536.0f) / 26.0f + 0.5f);
+    ELECHOUSE_cc1101.SpiWriteReg(CC1101_FSCTRL0, 0x00);
+    ELECHOUSE_cc1101.SpiWriteReg(CC1101_FREQ2, static_cast<uint8_t>((freq >> 16) & 0xFF));
+    ELECHOUSE_cc1101.SpiWriteReg(CC1101_FREQ1, static_cast<uint8_t>((freq >> 8) & 0xFF));
+    ELECHOUSE_cc1101.SpiWriteReg(CC1101_FREQ0, static_cast<uint8_t>(freq & 0xFF));
     ELECHOUSE_cc1101.setModulation(2);
     ELECHOUSE_cc1101.setSyncMode(0);
     ELECHOUSE_cc1101.setPA(12);
-    ELECHOUSE_cc1101.setRxBW(256.0f);
+    ELECHOUSE_cc1101.setRxBW(650.0f);
 }
 } // namespace
 
@@ -133,6 +141,18 @@ const CaptureResult& SubGhzEngine::result() { return captured; }
 bool SubGhzEngine::transmitRaw(float mhz, const int16_t* pulses, size_t count, uint8_t repeats) {
     if (!ready || captureState == CaptureState::Recording || !PulseCodec::validFrequency(mhz) ||
         !PulseCodec::validRaw(pulses, count, repeats)) return false;
+    uint32_t burstUs = 0;
+    for (size_t i = 0; i < count; ++i) {
+        burstUs += static_cast<uint32_t>(pulses[i] > 0 ? pulses[i] : -pulses[i]);
+    }
+    uint8_t effectiveRepeats = repeats;
+    if (burstUs > 0 && effectiveRepeats < 12) {
+        // Garage door receivers require multiple consecutive frames to wake AGC and
+        // validate static keys (whereas Flipper Zero in Read mode decodes a single frame).
+        while (effectiveRepeats < 12 && burstUs * (effectiveRepeats + 1) <= 1500000UL) {
+            ++effectiveRepeats;
+        }
+    }
     idle();
     configure(mhz);
     digitalWrite(PIN_CC1101_GDO0, LOW);
@@ -140,7 +160,7 @@ bool SubGhzEngine::transmitRaw(float mhz, const int16_t* pulses, size_t count, u
     ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, 0x0D);
     ELECHOUSE_cc1101.SetTx();
     delayMicroseconds(1000); // Allow synthesizer calibration/settling before the first mark.
-    for (uint8_t repeat = 0; repeat < repeats; ++repeat) {
+    for (uint8_t repeat = 0; repeat < effectiveRepeats; ++repeat) {
         for (size_t i = 0; i < count; ++i) {
             int32_t p = pulses[i];
             digitalWrite(PIN_CC1101_GDO0, p > 0 ? HIGH : LOW);

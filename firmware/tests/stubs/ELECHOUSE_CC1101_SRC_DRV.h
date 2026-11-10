@@ -1,8 +1,10 @@
 #pragma once
 #include <stdint.h>
-constexpr uint8_t CC1101_IOCFG2 = 0, CC1101_IOCFG0 = 2, CC1101_SIDLE = 0x36;
+constexpr uint8_t CC1101_IOCFG2 = 0, CC1101_IOCFG0 = 2, CC1101_FSCTRL0 = 0x0C,
+                  CC1101_FREQ2 = 0x0D, CC1101_FREQ1 = 0x0E, CC1101_FREQ0 = 0x0F,
+                  CC1101_SIDLE = 0x36;
 struct FakeRadio {
-    uint8_t regs[3] = {};
+    uint8_t regs[64] = {};
     bool idle = true;
     unsigned transmissions = 0;
     void setSpiPin(int, int, int, int) {}
